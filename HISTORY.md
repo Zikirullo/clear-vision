@@ -5,6 +5,42 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: non-blocking speaker with priorities (2026-11-08)
+
+- `src/speaker.py`: `Speaker` runs TTS on its own thread. `say()` never blocks.
+  - There's at most one pending message:
+    - Urgent replaces pending and interrupts current speech by killing the `say`
+      process or calling `engine.stop()`.
+    - A normal message replaces an older pending normal (newest wins). It's dropped if
+      an urgent message is pending, and it never interrupts.
+  - `say()` accepts a navigator `Message` or a plain string with a priority.
+  - Also has `start()`, `stop()`, `with Speaker(...)`, `is_speaking`,
+    `wait_until_idle()` and `Speaker.from_config()`.
+  - Backends: `SayBackend` (`say -r <rate>`) and `Pyttsx3Backend`.
+    - `auto` = `say` on macOS, pyttsx3 elsewhere.
+    - If pyttsx3 fails at runtime on macOS, the speaker switches to `say`.
+    - If every backend fails, it logs a critical error.
+  - Why `say` on macOS: tested pyttsx3's nsss driver on a worker thread.
+    `runAndWait()` returns in about 0.05 s while speech continues, so the end of an
+    utterance can't be detected and queued messages would overlap.
+- `configs/default.yaml`: new `speaker:` section with `rate: 220` and `backend: auto`.
+- `scripts/speaker_test.py`: demonstrates out loud:
+  - urgent interrupts normal
+  - only the newest normal is kept
+  - normal dropped while urgent is pending
+- `tests/test_speaker.py`: 8 silent tests of the queue rules, using a fake backend.
+- Removed the empty `src/spiker.py`, which `speaker.py` replaces.
+- Tested:
+  - The demo interrupted the normal sentence 9 ms after the urgent message was queued.
+  - Speaker tests passed on 5 runs in a row. Full suite 42/42 passed.
+- Open:
+  - Each `say` call takes about 0.7 s to start, rendering "Person, left" in 0.68 s.
+    That alone breaks the 300 ms budget. Fix: a persistent engine or pre-rendered
+    phrases.
+  - `main.py` isn't wired yet, so there's no real-time test with real objects.
+  - The tracker is missing.
+  - The COCO model can't see poles, curbs, stairs or holes.
+
 ## feat: navigator logic and navigator tests (2026-11-08)
 
 - `src/navigator.py` contains pure functions: no OpenCV, no audio, no camera.

@@ -58,3 +58,7 @@ navigator:
   risk_threshold: 1.0        # objects below this risk are not announced
   cooldown: 4.0              # seconds before repeating the same class + direction
   urgent_cooldown: 1.5       # shorter repeat time for urgent (ahead + near) warnings
+
+speaker:
+  rate: 220                  # words per minute
+  backend: auto              # auto | pyttsx3 | say (auto = `say` on macOS, pyttsx3 elsewhere)
