@@ -24,6 +24,12 @@ capture, ONNX Runtime inference, navigation logic, audio output and latency test
 - Never edit the same notebook in Colab and VS Code at the same time.
 - Never commit `.venv/`, datasets, runs or large model weights.
 
+## History log (do this before every commit)
+
+Before each commit, add an entry at the top of `HISTORY.md`. Use the commit message
+as the heading. List what changed and why, how it was tested, and anything not tested
+or left open. Stage `HISTORY.md` in the same commit. Never rewrite older entries.
+
 ## Tech
 
 Python 3.11 (venv in `.venv/`), OpenCV, Ultralytics YOLO, ONNX Runtime,
