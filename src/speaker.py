@@ -216,6 +216,12 @@ class Speaker:
         with self._cond:
             return self._current is not None
 
+    @property
+    def is_busy(self) -> bool:
+        """True while speaking or while a message is waiting to be spoken."""
+        with self._cond:
+            return self._current is not None or self._pending is not None
+
     def wait_until_idle(self, timeout: float | None = None) -> bool:
         """Block until nothing is speaking or pending (for scripts and tests)."""
         with self._cond:

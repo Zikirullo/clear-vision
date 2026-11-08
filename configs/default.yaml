@@ -59,6 +59,11 @@ navigator:
   cooldown: 4.0              # seconds before repeating the same class + direction
   urgent_cooldown: 1.5       # shorter repeat time for urgent (ahead + near) warnings
 
+app:
+  camera_retry_s: 2.0        # seconds between camera reconnect attempts
+  show_message_s: 2.0        # how long the last message stays on the debug window
+  stats_interval_s: 5.0      # how often FPS and timings are logged
+
 speaker:
   rate: 220                  # words per minute
   backend: auto              # auto | pyttsx3 | say (auto = `say` on macOS, pyttsx3 elsewhere)

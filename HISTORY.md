@@ -5,6 +5,47 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: main app wiring camera, detector, navigator and speaker (2026-11-08)
+
+- `src/main.py` (`python -m src.main`) connects Camera → Detector → `choose_message` →
+  Speaker.
+  - CLI: `--source` (default from config), `--config`, `--no-window`, `--mute`.
+  - Debug window:
+    - Boxes with class, confidence, direction and proximity: red for urgent
+      (ahead + near), orange for risk ≥ threshold, green otherwise.
+    - Lines marking the zones.
+    - FPS, capture age, inference ms and total ms at the top, and the last message at
+      the bottom.
+  - Speech:
+    - "Clear Vision started" on launch.
+    - "Camera not available" or "Camera lost" once, then "Camera back".
+    - "Detection model failed…" out loud, then exit.
+  - `CameraSupervisor` reopens a dead camera every `camera_retry_s` on a background
+    thread. It also stops hung cameras off the main loop.
+  - Normal messages are only sent when the speaker is idle, so they don't pile up.
+    Urgent always goes through. `last_spoken` is set when a message is sent.
+  - `logs/session_<datetime>.csv`: one row per message with time, elapsed, priority,
+    key, text, frame-to-decision ms and muted.
+  - Graceful shutdown on `q`, Ctrl+C or video end. FPS and timings are logged every
+    `stats_interval_s`.
+- `src/speaker.py`: added `is_busy`, true while speaking or while a message is pending.
+- `configs/default.yaml`: new `app:` section with `camera_retry_s`, `show_message_s`
+  and `stats_interval_s`.
+- `.gitignore`: `logs/`.
+- Tested:
+  - Synthetic 6 s zoom video from the COCO street image, run headless and muted:
+    - 23.7 FPS, frame-to-decision avg 67.5 ms (max 113 ms), inference about 46 ms.
+    - 8 messages in 6 s with no per-frame repeats. Urgent repeats only after the 1.5 s
+      cooldown.
+  - Missing camera: "Camera not available", a retry every 2 s, clean exit on SIGINT.
+  - Full suite 42/42 passed.
+- Not tested:
+  - The live webcam: walking toward a chair or person, with audio.
+- Still open:
+  - The `say` start-up delay of about 0.6 s.
+  - The first frame at a new shape takes about 0.25 s.
+  - The tracker isn't built yet.
+
 ## feat: non-blocking speaker with priorities (2026-11-08)
 
 - `src/speaker.py`: `Speaker` runs TTS on its own thread. `say()` never blocks.
