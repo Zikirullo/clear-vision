@@ -1,0 +1,27 @@
+# Clear Vision default configuration. All tunable numbers live here.
+
+camera:
+  source: 0            # webcam index, video file path, or stream URL
+  width: 1280
+  height: 720
+  stale_timeout: 2.0   # seconds without a new frame before camera is unhealthy
+
+detector:
+  model_path: models/yolo11n.pt   # auto-downloaded on first use
+  conf: 0.4                       # minimum confidence to keep a detection
+  imgsz: 640                      # inference size in pixels
+  device: auto                    # auto | mps | cpu (auto uses MPS only on macOS 15+)
+  cpu_threads: 4                  # M1 has 4 performance cores; 4 beat 8 in benchmarks
+  allowed_classes:
+    - person
+    - bicycle
+    - car
+    - motorcycle
+    - bus
+    - truck
+    - bench
+    - chair
+    - dog
+    - fire hydrant
+    - stop sign
+    - potted plant

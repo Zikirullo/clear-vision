@@ -5,6 +5,40 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: YOLO detector, config file and detector tests (2026-11-08)
+
+- `src/detector.py`:
+  - `Detection(class_name, confidence, x1, y1, x2, y2, track_id=None)`. Coordinates are
+    normalized to 0–1, with the `center_x`, `width`, `height` and `area` properties.
+  - `Detector(model_path, conf, allowed_classes, imgsz, device, cpu_threads)` and
+    `Detector.from_config()`.
+    - It uses Ultralytics YOLO, and `yolo11n.pt` auto-downloads into `models/`.
+    - It warms up when created.
+    - The class filter is applied again after inference, because exported ONNX models
+      ignore `classes=`.
+  - `device: auto` uses MPS only on macOS 15+. On macOS 14.5 with torch 2.15, MPS
+    crashes the whole process with a native error that Python can't catch.
+- `configs/default.yaml`: `camera:` and `detector:` sections, including the 12
+  `allowed_classes` and `cpu_threads: 4`.
+- Tests:
+  - `tests/test_detector.py` has 4 tests: Detection math, finds a person or car, only
+    allowed classes and normalized boxes, and timing printed for a 640 px frame.
+  - Sample image: COCO val2017 #000000011197, a street with cars, people and a bicycle.
+  - `pytest.ini` lets plain `pytest` find `src`.
+- `requirements.txt` filled in. `.gitignore` now ignores `models/*.pt`, `models/*.onnx`
+  and `.pytest_cache/`.
+- Installed PyYAML and pytest. Ultralytics also installed onnx and onnxslim by itself
+  during the ONNX benchmark.
+- Benchmarks on the M1 CPU, per frame:
+  - 8 threads: about 58 ms. 4 threads: about 55 ms. 1280×720 frames: about 44 ms.
+  - ONNX through Ultralytics: no faster (CPU provider only), and 79 ms on 720p frames
+    because of the fixed 640×640 input.
+- Tested: 4/4 tests passed, with a median of 56.1 ms per 640 px frame.
+- Open:
+  - No live webcam detection viewer yet.
+  - A CoreML / ONNX Runtime speedup is still to do.
+  - MPS needs macOS 15.
+
 ## feat: camera capture module + camera test script (2026-11-08)
 
 - `src/camera.py`: added the `Camera(source, width, height, stale_timeout=2.0)` class.
