@@ -5,6 +5,43 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: navigator logic and navigator tests (2026-11-08)
+
+- `src/navigator.py` contains pure functions: no OpenCV, no audio, no camera.
+  - `direction(det)`: left, ahead or right, by `center_x` against `left_boundary` and
+    `right_boundary` (0.333 and 0.667).
+  - `proximity(det)`: by box height. near above 0.5, mid from 0.25 to 0.5, far below.
+  - `severity(class_name)`: from the config table. Unknown classes get
+    `default_severity`.
+  - `risk(det)`: proximity weight × direction weight × severity.
+    - Proximity weights: near 1.0, mid 0.6, far 0.3.
+    - Direction: ahead ×1.5, side ×1.0.
+  - `choose_message(detections, now, last_spoken)`: returns the highest-risk object
+    above `risk_threshold` (1.0) as a `Message(text, priority, key)`, or None.
+    - The phrase looks like "Car ahead, close" or "Person, left". It's urgent when the
+      object is ahead and near.
+    - The cooldown is per class and direction: 4 s normally, `urgent_cooldown` 1.5 s
+      for urgent warnings.
+    - If the top object is on cooldown, the next one is announced.
+    - It doesn't modify `last_spoken`. The caller records the time after speaking.
+  - `NavigatorConfig.from_dict()` builds the config from the `navigator:` section.
+- `src/detection.py`: `Detection` moved here, so the navigator and its tests don't
+  import torch, Ultralytics or OpenCV. `src.detector` still re-exports it.
+- `configs/default.yaml`: new `navigator:` section with every threshold, weight,
+  severity and cooldown.
+- `tests/test_navigator.py`: 30 cases covering:
+  - directions and distances, including boundary values
+  - severity and risk ordering
+  - no message, and below the threshold
+  - urgent and normal phrases
+  - most dangerous object chosen
+  - cooldown: suppress, per key, fallback, shorter urgent cooldown, history unchanged
+  - no cv2, torch or Ultralytics imported
+- Tested: navigator tests 30/30 in 0.08 s with no camera. Full suite 34/34 passed.
+- Open:
+  - Not connected to the live camera yet. That needs `main.py`, or a live test script.
+  - `speaker.py` and the tracker are still missing.
+
 ## feat: YOLO detector, config file and detector tests (2026-11-08)
 
 - `src/detector.py`:

@@ -25,3 +25,36 @@ detector:
     - fire hydrant
     - stop sign
     - potted plant
+
+navigator:
+  # Direction: frame split by box center_x (0 = left edge, 1 = right edge)
+  left_boundary: 0.333       # center_x below this -> "left"
+  right_boundary: 0.667      # center_x above this -> "right", in between -> "ahead"
+  # Proximity: normalized box height (fraction of frame height)
+  near_height: 0.5           # height > this -> "near"
+  mid_height: 0.25           # height >= this -> "mid", else "far"
+  # Risk = proximity_weight * direction_weight * severity
+  proximity_weights:
+    near: 1.0
+    mid: 0.6
+    far: 0.3
+  ahead_weight: 1.5
+  side_weight: 1.0
+  severity:
+    car: 3
+    bus: 3
+    truck: 3
+    motorcycle: 3
+    bicycle: 3
+    person: 2
+    dog: 2
+    pole: 2
+    fire hydrant: 2
+    bench: 1
+    chair: 1
+    potted plant: 1
+    stop sign: 1
+  default_severity: 1        # classes missing from the severity table
+  risk_threshold: 1.0        # objects below this risk are not announced
+  cooldown: 4.0              # seconds before repeating the same class + direction
+  urgent_cooldown: 1.5       # shorter repeat time for urgent (ahead + near) warnings

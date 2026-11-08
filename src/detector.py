@@ -11,7 +11,6 @@ import logging
 import platform
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,43 +18,15 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
+from src.detection import Detection
+
+__all__ = ["Detection", "Detector", "select_device"]
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_PATH = "models/yolo11n.pt"
 DEFAULT_CONF = 0.4
 DEFAULT_IMGSZ = 640
-
-
-@dataclass(frozen=True)
-class Detection:
-    """One detected object. Box coordinates are normalized to 0-1 of the frame."""
-
-    class_name: str
-    confidence: float
-    x1: float
-    y1: float
-    x2: float
-    y2: float
-    track_id: int | None = None
-
-    @property
-    def center_x(self) -> float:
-        """Horizontal center, 0 = left edge, 1 = right edge."""
-        return (self.x1 + self.x2) / 2
-
-    @property
-    def width(self) -> float:
-        return self.x2 - self.x1
-
-    @property
-    def height(self) -> float:
-        """Box height as a fraction of frame height (a rough closeness cue)."""
-        return self.y2 - self.y1
-
-    @property
-    def area(self) -> float:
-        """Box area as a fraction of frame area."""
-        return self.width * self.height
 
 
 MIN_MACOS_FOR_MPS = 15
