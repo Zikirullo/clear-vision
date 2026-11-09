@@ -5,6 +5,39 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: Colab notebook to download raw datasets (2026-11-09)
+
+- `notebooks/01_download_datasets.ipynb` fills `MyDrive/clear_vision/datasets/raw/<name>/`.
+  - A Settings cell at the top holds `ROBOFLOW_DATASETS`, the Open Images and COCO class
+    lists and the sample limits.
+  - 1. Setup: mounts Drive, installs roboflow and fiftyone, and reads `ROBOFLOW_API_KEY`
+    from Colab Secrets. If the key is missing it warns and skips the Roboflow datasets.
+  - 2. Roboflow: 9 datasets in YOLOv8 format. If a version fails, it uses the project's
+    latest version and prints which one.
+  - 3. Open Images V7: 8 classes, loaded one class at a time (up to 1500 per class, per
+    split), merged without duplicate images. It exports only those classes' boxes to
+    YOLOv5 format (train and val).
+  - 4. COCO-2017 subset: 10 classes, 5000 train and 1000 validation images, exported to
+    YOLO. The validation split was added so the export has a val set.
+  - 5. Mendeley: unzips `raw/mendeley/*.zip` into `raw/mendeley/<zip name>/`.
+  - 6. Summary table: status, images, label files and class names (from `data.yaml`,
+    `dataset.yaml` or a classes file), plus a list of failures.
+  - Re-running is safe:
+    - Each download goes to the Colab disk first and is then copied to Drive. A `.done`
+      marker is written last.
+    - Folders with `.done` are skipped. Folders without it are partial and downloaded
+      again.
+    - A failure in one dataset is recorded and doesn't stop the others.
+- `notebooks/00_colab_template.ipynb` wasn't in the repo, so the header follows the
+  existing `clear-vision/Clear_Vision.ipynb`: a Colab badge pointing at `develop`.
+- Tested:
+  - The notebook passes `nbformat.validate`, and every code cell compiles.
+  - The Mendeley and Summary cells were run locally on a fake Drive folder, with Colab
+    stubbed out. Unzip, skip-on-rerun, and the done / PARTIAL / FAILED rows all worked.
+- Not tested:
+  - The Roboflow, Open Images and COCO downloads. These need Colab and the API key.
+  - Running all cells in Colab end to end.
+
 ## feat: main app wiring camera, detector, navigator and speaker (2026-11-08)
 
 - `src/main.py` (`python -m src.main`) connects Camera → Detector → `choose_message` →
