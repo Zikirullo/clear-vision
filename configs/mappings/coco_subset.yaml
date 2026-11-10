@@ -1,0 +1,13 @@
+# Source class -> target class from configs/classes.yaml, or "drop".
+folder: coco_subset
+map:
+  person: person
+  bicycle: bicycle
+  car: car
+  motorcycle: motorcycle
+  bus: bus
+  truck: truck
+  dog: dog
+  bench: bench
+  fire hydrant: fire_hydrant
+  traffic light: traffic_light

@@ -1,0 +1,5 @@
+folder: rf_pole_curb_stairs
+map:
+  curb: curb
+  pole: pole
+  stairs: stairs

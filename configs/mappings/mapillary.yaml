@@ -1,0 +1,20 @@
+# Mapillary Vistas: instance masks converted to boxes. Used only if raw/mapillary/ exists.
+# Keys are label `name`s from the dataset's config_v*.json. These are the v2.0 names as
+# best known; the merge fails and lists similar names if one is not in the config.
+folder: mapillary
+format: mapillary
+min_size_px: 12          # skip instances whose box is narrower or shorter than this
+unlisted: drop           # the other ~110 Mapillary labels are not wanted
+map:
+  object--support--pole: pole
+  object--support--utility-pole: pole
+  object--manhole: manhole
+  construction--flat--pothole: pothole
+  construction--flat--crosswalk-plain: crosswalk
+  marking--discrete--crosswalk-zebra: crosswalk
+  object--traffic-light--general-upright: traffic_light
+  object--traffic-light--general-horizontal: traffic_light
+  object--traffic-light--pedestrians: traffic_light
+  object--bench: bench
+  object--fire-hydrant: fire_hydrant
+  object--bike-rack: drop

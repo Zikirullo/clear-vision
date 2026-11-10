@@ -5,6 +5,75 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: merge raw datasets into one YOLO dataset (2026-11-10)
+
+- `configs/classes.yaml`: the 20 target classes in ID order, person (0) to fire_hydrant (19).
+- `configs/mappings/<source>.yaml`: one file per source, mapping each source class to a
+  target class or `drop`.
+  - Sources: coco_subset, openimages, mendeley, rf_bollard, rf_cone, rf_crosswalk,
+    rf_manhole, rf_pole_curb_stairs, rf_pothole, rf_scooter_bollard and rf_stairs.
+  - rf_crosswalk: `pedestrian-crossing` and `2` are dropped. `pedestrian-crossing` is
+    marked for review.
+  - `mapillary.yaml` (instance masks → boxes, min 12 px, other labels dropped) is used
+    only if `raw/mapillary/` exists. Its label names are unverified guesses at Vistas
+    v2.0.
+- `scripts/merge_datasets.py` (`merge()` and a CLI):
+  - Prints all mappings first, then scans and validates every source before copying
+    anything.
+  - Fails with a clear message on:
+    - a source class that isn't mapped
+    - a mapped class the source doesn't have (with similar-name suggestions)
+    - a raw folder without a mapping file
+    - a missing source folder
+    - more than 50% of a source's images without a label file (an unknown layout)
+  - Builds on the local disk (`--work`):
+    - Copies the images while hashing them, and removes exact duplicates by md5 (the
+      first source in mapping order wins).
+    - Prefixes filenames with the source name, and rewrites the labels with target IDs.
+    - Converts polygon labels to boxes. Invalid lines are skipped and counted.
+  - Grouped 75/15/10 split per source, seed 42:
+    - Roboflow `.rf.` copies stay together.
+    - Groups in a source's own test split go to test, and the rest fill test up to
+      10%, then val.
+  - Writes `data.yaml` (absolute `--out` path), `merge_report.json` (images and boxes per
+    split, per class and per source, plus duplicates, dropped boxes and invalid boxes),
+    and 16 review images per review class in `review/<class>/` (red = review boxes,
+    green = kept boxes).
+  - Prints a table of boxes per class per split, and flags classes under 300 train boxes.
+  - Copies to `--out` with threads and tqdm, then writes `.done`. Re-runs skip unless
+    forced.
+  - Only deletes folders that carry its own marker.
+- `notebooks/02_merge_datasets.ipynb`:
+  - Mounts Drive and clones or updates the repo on `develop`.
+  - Merges `datasets/raw` into `datasets/merged` through `/content/merged_tmp`.
+  - Runs `check_det_dataset`, then shows the review images.
+- `notebooks/01_download_datasets.ipynb`: removed `rf_sidewalk_obstacles`, whose download
+  failed with no versions.
+- `requirements.txt`: `tqdm>=4.66`.
+- `tests/test_merge.py`: 20 tests on two fake sources in `tests/assets/merge/`. They
+  cover:
+  - the end-to-end output and the re-run skip
+  - prefixes, duplicate removal and remapped IDs
+  - polygons, the augmented pair in one split, and the own test split kept
+  - report counts and review images
+  - Ultralytics `check_det_dataset`
+  - the failure cases: unmapped class, mapping typo, unmapped folder, unknown label
+    layout, and a folder that isn't the script's own
+  - unit tests for grouping, label parsing, the split ratios and seed, Mapillary
+    mask-to-box conversion, and the real mapping files
+- Tested:
+  - Full suite 62/62 passed.
+  - The CLI and the notebook's merge and check cells were run locally on the fake data.
+- Not tested:
+  - The merge on the real Drive datasets in Colab, including timing and the Mendeley
+    folder layout.
+  - Mapillary on real data.
+- Open:
+  - `notebooks/00_colab_template.ipynb` still doesn't exist.
+  - Decide on `pedestrian-crossing` after looking at the review images.
+  - Sources don't label each other's classes (for example, people in the cone images),
+    so the training data has unlabeled objects.
+
 ## feat: Colab notebook to download raw datasets (2026-11-09)
 
 - `notebooks/01_download_datasets.ipynb` fills `MyDrive/clear_vision/datasets/raw/<name>/`.

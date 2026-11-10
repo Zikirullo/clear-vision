@@ -1,0 +1,6 @@
+folder: src_b
+map:
+  cone: traffic_cone
+  bump: drop
+review:
+  - bump

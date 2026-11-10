@@ -1,0 +1,4 @@
+folder: src_a
+map:
+  Person: person
+  Car: car

@@ -1,0 +1,10 @@
+folder: openimages
+map:
+  Stairs: stairs
+  Traffic light: traffic_light
+  Fire hydrant: fire_hydrant
+  Bench: bench
+  Bicycle: bicycle
+  Person: person
+  Car: car
+  Dog: dog

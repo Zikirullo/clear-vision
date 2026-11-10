@@ -1,0 +1,6 @@
+folder: mendeley/Obstacles Avoidance Assistance for Visually Impair
+map:
+  pole: pole
+  hole: pothole
+  fence: barrier
+  bump: drop

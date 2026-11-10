@@ -1,0 +1,9 @@
+folder: rf_crosswalk
+map:
+  "2": drop
+  crosswalk: crosswalk
+  pedestrian: person
+  pedestrian-crossing: drop   # undecided: see datasets/merged/review/pedestrian-crossing/
+# Save sample images with these source classes drawn, to decide on them later.
+review:
+  - pedestrian-crossing

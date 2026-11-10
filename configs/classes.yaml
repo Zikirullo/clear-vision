@@ -1,0 +1,23 @@
+# Target classes of the merged training dataset, in class-ID order (0 = person).
+# Changing the order changes every class ID: re-run scripts/merge_datasets.py and retrain.
+names:
+  - person
+  - bicycle
+  - car
+  - motorcycle
+  - bus
+  - truck
+  - dog
+  - scooter
+  - pole
+  - bollard
+  - traffic_cone
+  - barrier
+  - curb
+  - stairs
+  - pothole
+  - manhole
+  - crosswalk
+  - traffic_light
+  - bench
+  - fire_hydrant

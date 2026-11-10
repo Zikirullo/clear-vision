@@ -1,0 +1,7 @@
+folder: rf_scooter_bollard
+map:
+  Bicycle: bicycle
+  Electric-Scooter: scooter
+  bollard: bollard
+  motorcycle: motorcycle
+  person: person
