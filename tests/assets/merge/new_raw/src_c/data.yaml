@@ -1,0 +1,3 @@
+train: ../train/images
+val: ../valid/images
+names: ['Cone', 'walker', 'junk']

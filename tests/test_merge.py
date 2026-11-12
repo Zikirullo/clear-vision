@@ -19,6 +19,7 @@ import yaml
 from scripts.merge_datasets import (
     REPO,
     MergeError,
+    append,
     Record,
     assign_splits,
     group_key,
@@ -239,3 +240,158 @@ def test_real_mapping_files_are_valid() -> None:
     assert mappings["rf_crosswalk"].classes["2"] == "drop"
     assert mappings["rf_crosswalk"].review == ("pedestrian-crossing",)
     assert mappings["mapillary"].format == "mapillary"
+
+
+# ---------------------------------------------------------------------- append
+#
+# Base: a full merge of src_a + src_b. Append: src_c from new_raw/ (a 2000x1000 PNG
+# augmented pair, a small JPEG, a copy of src_a's a2.jpg, an unlisted class "junk").
+
+
+def append_mappings(tmp_path: Path, src_b: str | None = None) -> Path:
+    """Base mappings + src_c, optionally with a changed src_b mapping file."""
+    mappings = tmp_path / "append_mappings"
+    shutil.copytree(ASSETS / "mappings", mappings)
+    shutil.copy(ASSETS / "append_mappings" / "src_c.yaml", mappings)
+    if src_b is not None:
+        (mappings / "src_b.yaml").write_text(src_b)
+    return mappings
+
+
+def run_append(tmp_path: Path, sources: list[str], mappings: Path, **kwargs) -> dict | None:
+    return append(
+        raw=[ASSETS / "new_raw", ASSETS / "raw"],
+        out=tmp_path / "out",
+        new_sources=sources,
+        work=tmp_path / "append_work",
+        classes_path=ASSETS / "classes.yaml",
+        mappings_dir=mappings,
+        **kwargs,
+    )
+
+
+def boxes_on_disk(out: Path) -> dict[str, dict[str, int]]:
+    """Count boxes per split and class straight from the merged label files."""
+    counts = {s: {c: 0 for c in CLASSES} for s in ("train", "val", "test")}
+    for path in (out / "labels").rglob("*.txt"):
+        for line in path.read_text().splitlines():
+            counts[path.parent.name][CLASSES[int(line.split()[0])]] += 1
+    return counts
+
+
+def test_append_adds_new_source(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    out, before = merged
+    report = run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    names = {p.name for p in (out / "images").rglob("*.*")}
+    assert {"src_c_big_png.rf.aaa.jpg", "src_c_big_png.rf.bbb.jpg", "src_c_small_jpg.rf.ddd.jpg"} <= names
+    assert "src_c_copy_jpg.rf.ccc.jpg" not in names  # same bytes as merged src_a_a2.jpg
+    src_c = report["sources"]["src_c"]
+    assert src_c["duplicates_removed"] == 1
+    assert src_c["dropped_boxes"] == {"junk": 1}
+    assert sum(src_c["images"].values()) == 3
+    assert report["sources"]["src_a"] == {**before["sources"]["src_a"]}  # untouched
+    assert sum(report["images"].values()) == sum(before["images"].values()) + 3
+    assert report["boxes"] == boxes_on_disk(out)  # totals recomputed
+    assert report["appends"][-1]["sources"] == ["src_c"]
+    assert json.loads((out / "merge_report.json").read_text()) == report
+    assert not (out / ".append_in_progress").exists()
+    assert not (tmp_path / "append_work").exists()
+
+
+def test_append_resizes_and_keeps_small_jpeg(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    import cv2
+
+    out, _ = merged
+    run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    big = next((out / "images").rglob("src_c_big_png.rf.aaa.jpg"))
+    assert cv2.imread(str(big)).shape[:2] == (640, 1280)
+    small = next((out / "images").rglob("src_c_small_jpg.rf.ddd.jpg"))
+    assert small.read_bytes() == (ASSETS / "new_raw/src_c/valid/images/small_jpg.rf.ddd.jpg").read_bytes()
+
+
+def test_append_keeps_augmented_pair_together(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    out, _ = merged
+    run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    splits = {p.parent.name for p in (out / "labels").rglob("src_c_big_png.rf.*.txt")}
+    assert len(splits) == 1
+
+
+def test_append_updates_md5_index_and_passes_ultralytics(
+    merged: tuple[Path, dict], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ultralytics.data.utils as data_utils
+
+    out, _ = merged
+    run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    index = json.loads((out / "md5_index.json").read_text())
+    assert len(index) == 8 + 3
+    monkeypatch.setattr(data_utils, "check_font", lambda *a, **k: None)
+    assert data_utils.check_det_dataset(str(out / "data.yaml"))["nc"] == 3
+
+
+def test_append_builds_md5_index_for_older_merges(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    out, _ = merged
+    (out / "md5_index.json").unlink()  # merges made before the index existed
+    report = run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    assert report["sources"]["src_c"]["duplicates_removed"] == 1
+
+
+def test_append_rerun_skips_already_merged_source(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    mappings = append_mappings(tmp_path)
+    assert run_append(tmp_path, ["src_c"], mappings) is not None
+    assert run_append(tmp_path, ["src_c"], mappings) is None
+
+
+def test_append_stops_when_drive_is_full(
+    merged: tuple[Path, dict], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, before = merged
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: shutil._ntuple_diskusage(10**9, 10**9 - 1000, 1000))
+    with pytest.raises(MergeError, match="Not enough space"):
+        run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+    assert not list((out / "images").rglob("src_c_*"))
+    assert json.loads((out / "merge_report.json").read_text()) == before
+
+
+def test_append_unmapped_class_fails(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    mappings = append_mappings(tmp_path)
+    (mappings / "src_c.yaml").write_text("folder: src_c\nmap:\n  Cone: traffic_cone\n  walker: person\n")
+    with pytest.raises(MergeError, match=r"\['junk'\]"):
+        run_append(tmp_path, ["src_c"], mappings)
+
+
+def test_append_needs_existing_merge(tmp_path: Path) -> None:
+    with pytest.raises(MergeError, match="Run a full merge first"):
+        run_append(tmp_path, ["src_c"], append_mappings(tmp_path))
+
+
+def test_append_remaps_changed_mapping_of_merged_source(merged: tuple[Path, dict], tmp_path: Path) -> None:
+    out, before = merged
+    before_labels = labels_of(out)
+    # bump was dropped in the merge; now it maps to car (like pedestrian-crossing -> crosswalk).
+    mappings = append_mappings(tmp_path, "folder: src_b\nmap:\n  cone: traffic_cone\n  bump: car\nreview:\n  - bump\n")
+    report = run_append(tmp_path, [], mappings)
+    labels = labels_of(out)
+    assert labels["src_b_img3_jpg.rf.ddd"][1] == ["1 0.500000 0.500000 0.900000 0.300000"]
+    assert sorted(line.split()[0] for line in labels["src_b_img1_jpg.rf.bbb"][1]) == ["1", "2"]
+    assert report["sources"]["src_b"]["dropped_boxes"] == {}
+    assert report["sources"]["src_b"]["mapping"]["bump"] == "car"
+    assert report["sources"]["src_b"]["duplicates_removed"] == 1
+    assert report["appends"][-1]["remapped"] == {"src_b": ["bump"]}
+    car = lambda r: sum(r["boxes"][s]["car"] for s in ("train", "val", "test"))  # noqa: E731
+    assert car(report) == car(before) + 2
+    assert report["boxes"] == boxes_on_disk(out)
+    assert labels["src_a_a1"] == before_labels["src_a_a1"]  # other sources untouched
+    # Mapping recorded: running again finds nothing to do.
+    assert run_append(tmp_path, [], mappings) is None
+
+
+def test_changed_classes_for_reports_without_recorded_mapping() -> None:
+    from scripts.merge_datasets import Mapping, changed_classes
+
+    m = Mapping("rf_crosswalk", "rf_crosswalk", {"crosswalk": "crosswalk", "pedestrian-crossing": "crosswalk", "2": "drop"})
+    old_entry = {"dropped_boxes": {"pedestrian-crossing": 40, "2": 3}}
+    assert changed_classes(old_entry, m) == ["pedestrian-crossing"]
+    recorded = {"mapping": {"crosswalk": "crosswalk", "pedestrian-crossing": "drop", "2": "drop"}}
+    assert changed_classes(recorded, m) == ["pedestrian-crossing"]
+    assert changed_classes({"mapping": dict(m.classes)}, m) == []

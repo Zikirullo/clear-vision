@@ -2,26 +2,40 @@
 
 Each source has a mapping file configs/mappings/<short_name>.yaml:
 
-    folder: rf_cone              # folder under --raw
+    folder: rf_cone              # folder under a --raw folder
     map: {cone: traffic_cone}    # source class -> target class, or "drop"
     review: [some-class]         # optional: save sample images with these boxes drawn
     unlisted: drop               # optional: drop classes missing from `map` (default: fail)
+    missing: warn                # optional: mapped classes the source lacks only warn (default: fail)
     format: mapillary            # optional: instance masks instead of YOLO labels
 
-Steps:
+Full merge (rebuilds --out):
 1. Scan and validate every source. Nothing is copied if a source class isn't mapped.
 2. Copy the images to the local work dir while hashing them, and drop exact
    duplicates (md5).
 3. Grouped train/val/test split. Roboflow augmented copies stay together, and each
    dataset's own test split stays in test.
-4. Write labels, data.yaml, merge_report.json and the review images, then copy the
-   result to --out and mark it with .done.
+4. Write labels, data.yaml, merge_report.json, md5_index.json and the review images,
+   then copy the result to --out and mark it with .done.
+
+Append (--append NAME ...) adds new sources to an existing --out without rebuilding:
+- It uses the same mapping and validation rules.
+- New images are de-duplicated against the merged images (md5_index.json) and split
+  on their own.
+- They're resized to --max-side px, stored as JPEG, and copied only if Drive has
+  room. merge_report.json is updated.
+- In the same run, every merged source whose mapping file changed has its existing
+  labels re-mapped from the raw labels (e.g. pedestrian-crossing: drop -> crosswalk).
 
 Usage (Colab, see notebooks/02_merge_datasets.ipynb):
     python scripts/merge_datasets.py \\
         --raw /content/drive/MyDrive/clear_vision/datasets/raw \\
         --out /content/drive/MyDrive/clear_vision/datasets/merged \\
         --work /content/merged_tmp
+    python scripts/merge_datasets.py --append rf_sidewalk rf_barricade \\
+        --raw /content/raw /content/drive/MyDrive/clear_vision/datasets/raw \\
+        --out /content/drive/MyDrive/clear_vision/datasets/merged \\
+        --work /content/append_tmp
 """
 
 from __future__ import annotations
@@ -56,12 +70,17 @@ SPLITS = ("train", "val", "test")
 DROP = "drop"
 DONE = ".done"
 WORK_MARKER = ".merge_work"  # only folders carrying this marker are ever deleted
+APPEND_MARKER = ".append_in_progress"
+REPORT_FILE = "merge_report.json"
+INDEX_FILE = "md5_index.json"  # md5 of each merged image's source file -> "split/name"
 MIN_TRAIN_BOXES = 300
 MAX_MISSING_LABELS = 0.5  # fail if more than this share of a source's images lack a label file
+SPACE_MARGIN = 1.1  # need 10% more free space than the files take
 WORKERS = 16  # threads for file I/O; Drive reads are slow but parallelize well
 
 Box = tuple[int, float, float, float, float]  # class id, x_center, y_center, w, h (0-1)
 ReviewBox = tuple[str, float, float, float, float]  # source class name + box
+RawArg = Path | str | Sequence[Path | str]
 
 
 class MergeError(Exception):
@@ -75,6 +94,7 @@ class Mapping:
     classes: dict[str, str]  # source class -> target class or DROP
     review: tuple[str, ...] = ()
     unlisted_drop: bool = False
+    missing_warn: bool = False
     format: str = "yolo"  # "yolo" or "mapillary"
     min_size_px: int = 12  # mapillary only
 
@@ -88,12 +108,13 @@ class Record:
     boxes: list[Box]
     review: list[ReviewBox] = field(default_factory=list)
     out_stem: str = ""
-    md5: str = ""
+    out_ext: str = ""  # default: the source image's extension
+    md5: str = ""  # of the source file
     split: str = ""
 
     @property
     def out_name(self) -> str:
-        return self.out_stem + self.image.suffix.lower()
+        return self.out_stem + (self.out_ext or self.image.suffix.lower())
 
 
 @dataclass
@@ -108,6 +129,18 @@ class SourceStats:
 
 
 # ---------------------------------------------------------------------- config
+
+
+def as_roots(raw: RawArg) -> list[Path]:
+    """One or more raw folders, searched in order for each source folder."""
+    return [Path(raw)] if isinstance(raw, (str, Path)) else [Path(r) for r in raw]
+
+
+def find_source_dir(roots: Sequence[Path], folder: str) -> Path | None:
+    for root in roots:
+        if (root / folder).is_dir():
+            return root / folder
+    return None
 
 
 def load_classes(path: Path) -> list[str]:
@@ -145,6 +178,7 @@ def load_mappings(mapping_dir: Path, classes: Sequence[str]) -> list[Mapping]:
                 classes=cmap,
                 review=review,
                 unlisted_drop=data.get("unlisted") == DROP,
+                missing_warn=data.get("missing") == "warn",
                 format=str(data.get("format", "yolo")),
                 min_size_px=int(data.get("min_size_px", 12)),
             )
@@ -152,29 +186,30 @@ def load_mappings(mapping_dir: Path, classes: Sequence[str]) -> list[Mapping]:
     return mappings
 
 
-def active_sources(raw: Path, mappings: Sequence[Mapping]) -> list[Mapping]:
+def active_sources(roots: Sequence[Path], mappings: Sequence[Mapping]) -> list[Mapping]:
     """Mappings whose folder exists. Fails on missing sources and unmapped folders."""
     active = []
     for m in mappings:
-        if (raw / m.folder).is_dir():
+        if find_source_dir(roots, m.folder):
             active.append(m)
         elif m.format == "mapillary":
-            logger.info("raw/%s not found: %s skipped", m.folder, m.short_name)
+            logger.info("%s not found: %s skipped", m.folder, m.short_name)
         else:
             raise MergeError(
-                f"{m.short_name}: folder raw/{m.folder} not found. Download it, or delete "
-                f"configs/mappings/{m.short_name}.yaml."
+                f"{m.short_name}: folder {m.folder} not found in {[str(r) for r in roots]}. "
+                f"Download it, or delete configs/mappings/{m.short_name}.yaml."
             )
     covered = {Path(m.folder).parts[0] for m in mappings}
-    unmapped = sorted(
-        p.name for p in raw.iterdir()
-        if p.is_dir() and not p.name.startswith(".") and p.name not in covered
-    )
-    if unmapped:
-        raise MergeError(
-            f"Folders in {raw} without a mapping file: {unmapped}. Add "
-            "configs/mappings/<name>.yaml for each, so nothing is left out silently."
+    for root in roots:
+        unmapped = sorted(
+            p.name for p in root.iterdir()
+            if p.is_dir() and not p.name.startswith(".") and p.name not in covered
         )
+        if unmapped:
+            raise MergeError(
+                f"Folders in {root} without a mapping file: {unmapped}. Add "
+                "configs/mappings/<name>.yaml for each, so nothing is left out silently."
+            )
     return active
 
 
@@ -182,7 +217,7 @@ def log_mappings(mappings: Sequence[Mapping], active: Sequence[Mapping]) -> None
     logger.info("Class mappings (source class -> target class):")
     for m in mappings:
         present = "" if m in active else "   (not present, skipped)"
-        logger.info("  %s   [raw/%s]%s", m.short_name, m.folder, present)
+        logger.info("  %s   [%s]%s", m.short_name, m.folder, present)
         for src, dst in m.classes.items():
             logger.info("      %-40s -> %s", src, "DROP" if dst == DROP else dst)
         if m.unlisted_drop:
@@ -201,12 +236,17 @@ def check_classes(m: Mapping, names: Sequence[str], where: str) -> None:
             f"configs/mappings/{m.short_name}.yaml. Map each one to a target class or to "
             f"'{DROP}', so no boxes are lost silently."
         )
+    if unmapped:
+        logger.info("%s: dropping unlisted classes %s", m.short_name, unmapped)
     for missing in (c for c in m.classes if c not in names):
         close = difflib.get_close_matches(missing, names, n=5, cutoff=0.4)
-        raise MergeError(
+        msg = (
             f"{m.short_name}: mapping lists class {missing!r}, but {where} has no such "
             f"class. Similar names: {close or 'none'}."
         )
+        if not m.missing_warn:
+            raise MergeError(msg)
+        logger.warning("WARNING %s", msg)
 
 
 # ---------------------------------------------------------------------- scanning
@@ -286,6 +326,10 @@ def parse_label_text(text: str, n_classes: int, where: Path) -> tuple[list[Box],
             continue
         boxes.append((cls, (x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1))
     return boxes, invalid
+
+
+def label_text(boxes: Iterable[Box]) -> str:
+    return "".join(f"{c} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n" for c, x, y, w, h in boxes)
 
 
 def map_boxes(
@@ -415,6 +459,24 @@ def scan_mapillary(m: Mapping, root: Path, target_ids: dict[str, int], stats: So
     return records
 
 
+def scan_sources(
+    sources: Sequence[Mapping], roots: Sequence[Path], target_ids: dict[str, int],
+) -> tuple[list[Record], dict[str, SourceStats]]:
+    records: list[Record] = []
+    stats: dict[str, SourceStats] = {}
+    for m in sources:
+        root = find_source_dir(roots, m.folder)
+        if root is None:
+            raise MergeError(f"{m.short_name}: folder {m.folder} not found in {[str(r) for r in roots]}")
+        st = stats[m.short_name] = SourceStats(folder=m.folder)
+        scan = scan_mapillary if m.format == "mapillary" else scan_yolo
+        found = scan(m, root, target_ids, st)
+        st.images = len(found)
+        records += found
+    assign_out_stems(records)
+    return records, stats
+
+
 def assign_out_stems(records: Sequence[Record]) -> None:
     """`<source>_<stem>`, made unique if two files of a source share a stem."""
     taken: set[str] = set()
@@ -430,12 +492,12 @@ def assign_out_stems(records: Sequence[Record]) -> None:
 # ---------------------------------------------------------------------- build
 
 
-def prepare_dir(path: Path, raw: Path) -> None:
+def prepare_dir(path: Path, roots: Sequence[Path]) -> None:
     """Empty `path` for a fresh build, refusing to delete folders this script didn't make."""
     path = path.absolute()
-    raw = raw.absolute()
-    if path == raw or raw in path.parents or path in raw.parents:
-        raise MergeError(f"{path} overlaps the raw datasets folder {raw}")
+    for raw in (r.absolute() for r in roots):
+        if path == raw or raw in path.parents or path in raw.parents:
+            raise MergeError(f"{path} overlaps the raw datasets folder {raw}")
     if path.exists() and any(path.iterdir()):
         if not ((path / WORK_MARKER).exists() or (path / DONE).exists()):
             raise MergeError(f"Refusing to delete {path}: not made by this script. Empty it or pick another folder.")
@@ -456,9 +518,43 @@ def copy_and_hash(records: Sequence[Record], dest: Path) -> None:
     threaded(work, records, "copy + md5")
 
 
-def remove_duplicates(records: Sequence[Record], staging: Path, stats: dict[str, SourceStats]) -> list[Record]:
-    """Keep the first copy of each exact-duplicate image (sources in mapping file order)."""
-    seen: set[str] = set()
+def shrink_jpeg(data: bytes, ext: str, max_side: int, quality: int, where: Path) -> bytes:
+    """JPEG bytes with the longer side at most `max_side`. Small JPEGs are kept as they are."""
+    image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        raise MergeError(f"{where}: cannot decode image")
+    h, w = image.shape[:2]
+    if max(h, w) <= max_side and ext in (".jpg", ".jpeg"):
+        return data
+    scale = max_side / max(h, w)
+    if scale < 1:
+        image = cv2.resize(image, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise MergeError(f"{where}: JPEG encoding failed")
+    return buf.tobytes()
+
+
+def copy_shrink_and_hash(records: Sequence[Record], dest: Path, max_side: int, quality: int) -> None:
+    """Like copy_and_hash, but stores every image as a JPEG of at most `max_side` px.
+    The md5 is of the source file, so it matches md5_index.json of the full merge."""
+    dest.mkdir(parents=True, exist_ok=True)
+
+    def work(r: Record) -> None:
+        data = r.image.read_bytes()
+        r.md5 = hashlib.md5(data).hexdigest()
+        r.out_ext = ".jpg"
+        (dest / r.out_name).write_bytes(shrink_jpeg(data, r.image.suffix.lower(), max_side, quality, r.image))
+
+    threaded(work, records, f"copy + md5 + resize to {max_side}px")
+
+
+def remove_duplicates(
+    records: Sequence[Record], staging: Path, stats: dict[str, SourceStats], existing: Iterable[str] = (),
+) -> list[Record]:
+    """Keep the first copy of each exact-duplicate image (sources in mapping file order).
+    `existing`: md5s already in the merged dataset."""
+    seen = set(existing)
     kept = []
     for r in records:
         if r.md5 in seen:
@@ -497,8 +593,7 @@ def write_dataset(records: Sequence[Record], staging: Path, work: Path) -> None:
         (work / "labels" / split).mkdir(parents=True, exist_ok=True)
     for r in tqdm(records, desc="write labels"):
         os.replace(staging / r.out_name, work / "images" / r.split / r.out_name)
-        lines = "".join(f"{c} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n" for c, x, y, w, h in r.boxes)
-        (work / "labels" / r.split / f"{r.out_stem}.txt").write_text(lines)
+        (work / "labels" / r.split / f"{r.out_stem}.txt").write_text(label_text(r.boxes))
     staging.rmdir()
 
 
@@ -540,46 +635,112 @@ def draw_boxes(image: np.ndarray, boxes: Iterable[ReviewBox], color: tuple[int, 
         cv2.putText(image, name, (p1[0], max(15, p1[1] - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 
+def write_md5_index(path: Path, records: Iterable[Record], index: dict[str, str] | None = None) -> dict[str, str]:
+    index = dict(index or {})
+    index.update({r.md5: f"{r.split}/{r.out_name}" for r in records})
+    path.write_text(json.dumps(index))
+    return index
+
+
+def load_md5_index(out: Path) -> dict[str, str]:
+    """md5_index.json of a merged dataset, built once from its images if it is missing."""
+    path = out / INDEX_FILE
+    if path.exists():
+        return json.loads(path.read_text())
+    images = sorted(p for p in (out / "images").rglob("*") if p.suffix.lower() in IMAGE_EXTS)
+    # Full-merge images are byte copies of their source, so this equals the source md5.
+    hashes = threaded(lambda p: hashlib.md5(p.read_bytes()).hexdigest(), images, "md5 of merged images (once)")
+    index = {h: f"{p.parent.name}/{p.name}" for p, h in zip(images, hashes)}
+    path.write_text(json.dumps(index))
+    return index
+
+
+def dir_size(path: Path) -> int:
+    return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
+
+
+def gb(n: float) -> str:
+    return f"{n / 1e9:.2f} GB"
+
+
+def check_free_space(target: Path, needed: int) -> None:
+    free = shutil.disk_usage(target).free
+    if needed * SPACE_MARGIN > free:
+        raise MergeError(
+            f"Not enough space on {target}: the new files need {gb(needed)} (plus 10% margin), "
+            f"but only {gb(free)} is free. Free up Drive space, or lower max_side, then re-run."
+        )
+    logger.info("Space check: %s needed, %s free on %s", gb(needed), gb(free), target)
+
+
+def copy_files(src: Path, dest: Path, desc: str) -> None:
+    """Copy every file under `src` into `dest`, merging folders (threaded, for Drive)."""
+    files = [p for p in src.rglob("*") if p.is_file() and p.name != WORK_MARKER]
+    for d in sorted({p.parent for p in files}):
+        (dest / d.relative_to(src)).mkdir(parents=True, exist_ok=True)
+    threaded(lambda p: shutil.copyfile(p, dest / p.relative_to(src)), files, desc)
+
+
 # ---------------------------------------------------------------------- report
 
 
-def build_report(
-    records: Sequence[Record], classes: Sequence[str], stats: dict[str, SourceStats],
-    ratios: Sequence[float], seed: int, review: dict[str, int],
+def source_report(
+    m: Mapping, st: SourceStats, records: Iterable[Record], classes: Sequence[str],
 ) -> dict[str, Any]:
-    images = {s: 0 for s in SPLITS}
-    boxes = {s: {c: 0 for c in classes} for s in SPLITS}
-    sources: dict[str, Any] = {}
-    for name, st in stats.items():
-        sources[name] = {
-            "folder": st.folder,
-            "images_found": st.images,
-            "duplicates_removed": st.duplicates_removed,
-            "missing_label_files": st.missing_label_files,
-            "invalid_boxes": st.invalid_boxes,
-            "small_instances_skipped": st.small_instances_skipped,
-            "dropped_boxes": dict(st.dropped_boxes),
-            "images": {s: 0 for s in SPLITS},
-            "boxes": {s: {} for s in SPLITS},
-        }
+    entry: dict[str, Any] = {
+        "folder": st.folder,
+        "mapping": dict(m.classes),  # compared on append to find changed mappings
+        "unlisted": DROP if m.unlisted_drop else "fail",
+        "images_found": st.images,
+        "duplicates_removed": st.duplicates_removed,
+        "missing_label_files": st.missing_label_files,
+        "invalid_boxes": st.invalid_boxes,
+        "small_instances_skipped": st.small_instances_skipped,
+        "dropped_boxes": dict(st.dropped_boxes),
+        "images": {s: 0 for s in SPLITS},
+        "boxes": {s: {} for s in SPLITS},
+    }
     for r in records:
-        images[r.split] += 1
-        src = sources[r.source]
-        src["images"][r.split] += 1
+        entry["images"][r.split] += 1
         for c, *_ in r.boxes:
-            boxes[r.split][classes[c]] += 1
-            src["boxes"][r.split][classes[c]] = src["boxes"][r.split].get(classes[c], 0) + 1
-    return {
+            split_boxes = entry["boxes"][r.split]
+            split_boxes[classes[c]] = split_boxes.get(classes[c], 0) + 1
+    return entry
+
+
+def finalize_report(report: dict[str, Any]) -> None:
+    """Recompute the dataset totals from the per-source counts."""
+    classes, sources = report["classes"], report["sources"].values()
+    report["images"] = {s: sum(src["images"][s] for src in sources) for s in SPLITS}
+    report["boxes"] = {
+        s: {c: sum(src["boxes"][s].get(c, 0) for src in sources) for c in classes} for s in SPLITS
+    }
+    report["low_train_classes"] = [c for c in classes if report["boxes"]["train"][c] < MIN_TRAIN_BOXES]
+
+
+def build_report(
+    records: Sequence[Record], mappings: Sequence[Mapping], classes: Sequence[str],
+    stats: dict[str, SourceStats], ratios: Sequence[float], seed: int, review: dict[str, int],
+) -> dict[str, Any]:
+    by_source: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        by_source[r.source].append(r)
+    report: dict[str, Any] = {
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
         "seed": seed,
         "ratios": dict(zip(SPLITS, ratios)),
         "classes": list(classes),
-        "images": images,
-        "boxes": boxes,
-        "low_train_classes": [c for c in classes if boxes["train"][c] < MIN_TRAIN_BOXES],
+        "images": {},
+        "boxes": {},
+        "low_train_classes": [],
         "review_samples": review,
-        "sources": sources,
+        "sources": {
+            m.short_name: source_report(m, stats[m.short_name], by_source[m.short_name], classes)
+            for m in mappings
+        },
     }
+    finalize_report(report)
+    return report
 
 
 def log_summary(report: dict[str, Any]) -> None:
@@ -618,22 +779,19 @@ def write_data_yaml(work: Path, final_root: Path, classes: Sequence[str]) -> Non
     )
 
 
-def publish(work: Path, out: Path, raw: Path, info: dict[str, Any]) -> None:
+def publish(work: Path, out: Path, roots: Sequence[Path], info: dict[str, Any]) -> None:
     """Copy the finished build to `out` (e.g. Drive), then write the .done marker."""
     if work.absolute() != out.absolute():
-        prepare_dir(out, raw)
-        files = [p for p in work.rglob("*") if p.is_file() and p.name != WORK_MARKER]
-        for d in sorted({p.parent for p in files}):
-            (out / d.relative_to(work)).mkdir(parents=True, exist_ok=True)
-        threaded(lambda p: shutil.copyfile(p, out / p.relative_to(work)), files, f"copy to {out.name}")
+        prepare_dir(out, roots)
+        copy_files(work, out, f"copy to {out.name}")
     (out / DONE).write_text(json.dumps(info, indent=2))
 
 
-# ---------------------------------------------------------------------- main
+# ---------------------------------------------------------------------- full merge
 
 
 def merge(
-    raw: Path | str,
+    raw: RawArg,
     out: Path | str,
     work: Path | str | None = None,
     classes_path: Path | str = REPO / "configs" / "classes.yaml",
@@ -644,37 +802,29 @@ def merge(
     force: bool = False,
 ) -> dict[str, Any] | None:
     """Build the merged dataset. Returns the report, or None if `out` is already done."""
-    raw, out = Path(raw), Path(out)
+    roots, out = as_roots(raw), Path(out)
     work = Path(work) if work else out
     if (out / DONE).exists() and not force:
         logger.info("%s is already merged (%s exists). Use force to rebuild.", out, DONE)
         return None
-    if len(ratios) != 3 or abs(sum(ratios) - 1) > 1e-6:
-        raise MergeError(f"ratios must be 3 numbers that sum to 1, got {list(ratios)}")
-    if not raw.is_dir():
-        raise MergeError(f"Raw datasets folder not found: {raw}")
+    check_ratios(ratios)
+    for root in roots:
+        if not root.is_dir():
+            raise MergeError(f"Raw datasets folder not found: {root}")
     t0 = time.time()
 
     classes = load_classes(Path(classes_path))
     mappings = load_mappings(Path(mappings_dir), classes)
-    active = active_sources(raw, mappings)
+    active = active_sources(roots, mappings)
     log_mappings(mappings, active)
     target_ids = {c: i for i, c in enumerate(classes)}
 
     # 1. Scan every source before copying anything, so mapping errors fail fast.
-    records: list[Record] = []
-    stats: dict[str, SourceStats] = {}
-    for m in active:
-        st = stats[m.short_name] = SourceStats(folder=m.folder)
-        scan = scan_mapillary if m.format == "mapillary" else scan_yolo
-        found = scan(m, raw / m.folder, target_ids, st)
-        st.images = len(found)
-        records += found
-    assign_out_stems(records)
+    records, stats = scan_sources(active, roots, target_ids)
     logger.info("Scanned %d images from %d sources in %.0fs", len(records), len(active), time.time() - t0)
 
     # 2. Copy + hash, drop duplicates. 3. Split. 4. Write everything.
-    prepare_dir(work, raw)
+    prepare_dir(work, roots)
     staging = work / "_staging"
     copy_and_hash(records, staging)
     records = remove_duplicates(records, staging, stats)
@@ -682,26 +832,198 @@ def merge(
     write_dataset(records, staging, work)
     review = write_review(records, active, classes, work, review_samples, seed)
 
-    report = build_report(records, classes, stats, ratios, seed, review)
-    (work / "merge_report.json").write_text(json.dumps(report, indent=2))
+    report = build_report(records, active, classes, stats, ratios, seed, review)
+    (work / REPORT_FILE).write_text(json.dumps(report, indent=2))
+    write_md5_index(work / INDEX_FILE, records)
     write_data_yaml(work, out, classes)
     log_summary(report)
 
-    publish(work, out, raw, {"created": report["created"], "images": report["images"], "seed": seed})
+    publish(work, out, roots, {"created": report["created"], "images": report["images"], "seed": seed})
     logger.info("Merged dataset ready: %s (%.0fs)", out / "data.yaml", time.time() - t0)
     return report
 
 
+def check_ratios(ratios: Sequence[float]) -> None:
+    if len(ratios) != 3 or abs(sum(ratios) - 1) > 1e-6:
+        raise MergeError(f"ratios must be 3 numbers that sum to 1, got {list(ratios)}")
+
+
+# ---------------------------------------------------------------------- append
+
+
+def changed_classes(entry: dict[str, Any], m: Mapping) -> list[str]:
+    """Source classes whose mapping differs from the one used when the source was merged."""
+    old = entry.get("mapping")
+    if old is not None:
+        return sorted(c for c in set(old) | set(m.classes) if old.get(c) != m.classes.get(c))
+    # Reports written before mappings were recorded: dropped classes that are now mapped.
+    return sorted(c for c, n in entry.get("dropped_boxes", {}).items() if n and m.classes.get(c, DROP) != DROP)
+
+
+def remap_source(
+    m: Mapping, roots: Sequence[Path], out: Path, entry: dict[str, Any], classes: Sequence[str],
+) -> tuple[dict[str, Any], int]:
+    """Rewrite the merged labels of one source from its raw labels and current mapping.
+    Returns (new report entry, label files changed)."""
+    if m.format != "yolo":
+        raise MergeError(f"{m.short_name}: re-mapping is only supported for YOLO sources")
+    target_ids = {c: i for i, c in enumerate(classes)}
+    records, stats = scan_sources([m], roots, target_ids)
+    prefix = f"{m.short_name}_"
+    merged = {
+        p.stem: p for split in SPLITS
+        for p in (out / "labels" / split).glob(f"{prefix}*.txt")
+    }
+    kept = [r for r in records if r.out_stem in merged]  # the others were duplicates
+    for r in kept:
+        r.split = merged[r.out_stem].parent.name
+
+    def rewrite(r: Record) -> bool:
+        path, text = merged[r.out_stem], label_text(r.boxes)
+        if path.read_text() == text:
+            return False
+        path.write_text(text)
+        return True
+
+    changed = sum(threaded(rewrite, kept, f"re-map {m.short_name} labels"))
+    st = stats[m.short_name]
+    st.duplicates_removed = entry.get("duplicates_removed", 0)
+    return source_report(m, st, kept, classes), changed
+
+
+def append(
+    raw: RawArg,
+    out: Path | str,
+    new_sources: Sequence[str],
+    work: Path | str | None = None,
+    classes_path: Path | str = REPO / "configs" / "classes.yaml",
+    mappings_dir: Path | str = REPO / "configs" / "mappings",
+    ratios: Sequence[float] = (0.75, 0.15, 0.10),
+    seed: int = 42,
+    review_samples: int = 16,
+    max_side: int = 1280,
+    jpeg_quality: int = 90,
+) -> dict[str, Any] | None:
+    """Add `new_sources` to the finished merged dataset at `out`, and re-map merged sources
+    whose mapping file changed. `raw` folders are searched in order for each source.
+    Returns the updated report, or None if there was nothing to do."""
+    roots, out = as_roots(raw), Path(out)
+    work = Path(work) if work else out.parent / f"{out.name}_append_tmp"
+    check_ratios(ratios)
+    for name in (DONE, "data.yaml", REPORT_FILE):
+        if not (out / name).exists():
+            raise MergeError(f"No finished merged dataset at {out} ({name} is missing). Run a full merge first.")
+    if (out / APPEND_MARKER).exists():
+        logger.warning("A previous append did not finish (%s). Running it again.", APPEND_MARKER)
+    t0 = time.time()
+
+    classes = load_classes(Path(classes_path))
+    merged_names = (yaml.safe_load((out / "data.yaml").read_text()) or {}).get("names")
+    if merged_names != classes:
+        raise MergeError(
+            f"configs/classes.yaml differs from {out / 'data.yaml'}. Class IDs would not match: "
+            "run a full merge (force) instead of appending."
+        )
+    report = json.loads((out / REPORT_FILE).read_text())
+    mappings = {m.short_name: m for m in load_mappings(Path(mappings_dir), classes)}
+
+    todo: list[Mapping] = []
+    for name in new_sources:
+        if name not in mappings:
+            raise MergeError(f"{name}: no mapping file configs/mappings/{name}.yaml")
+        if name in report["sources"]:
+            logger.info("%s is already in the merged dataset, skipping it", name)
+        else:
+            todo.append(mappings[name])
+    for name in report["sources"]:
+        if name not in mappings:
+            logger.warning("%s is merged but has no mapping file any more; its labels are kept", name)
+    remaps = {
+        name: changed for name, entry in report["sources"].items()
+        if name in mappings and (changed := changed_classes(entry, mappings[name]))
+    }
+    if not todo and not remaps:
+        logger.info("Nothing to append and no changed mappings.")
+        return None
+
+    log_mappings(todo + [mappings[n] for n in remaps], todo + [mappings[n] for n in remaps])
+    for name, changed in remaps.items():
+        logger.info("%s: mapping changed for %s, its merged labels will be re-mapped", name, changed)
+    target_ids = {c: i for i, c in enumerate(classes)}
+
+    # 1. Scan the new sources (fails fast on mapping problems).
+    records, stats = scan_sources(todo, roots, target_ids)
+
+    # 2. Build them locally: resize, de-duplicate against the merged images, split.
+    index = load_md5_index(out) if records else {}
+    prepare_dir(work, roots)
+    staging = work / "_staging"
+    copy_shrink_and_hash(records, staging, max_side, jpeg_quality)
+    records = remove_duplicates(records, staging, stats, existing=index)
+    assign_splits(records, ratios, seed)
+    write_dataset(records, staging, work)
+    review = write_review(records, todo, classes, work, review_samples, seed)
+
+    # 3. Nothing has been written to `out` yet: check that the new files fit.
+    check_free_space(out, dir_size(work))
+
+    (out / APPEND_MARKER).write_text(json.dumps({"sources": [m.short_name for m in todo], "remap": remaps}))
+    for name in remaps:
+        report["sources"][name], n_changed = remap_source(mappings[name], roots, out, report["sources"][name], classes)
+        logger.info("%s: %d label files re-mapped", name, n_changed)
+    copy_files(work, out, f"copy to {out.name}")
+
+    # 4. Update the index and the report.
+    by_source: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        by_source[r.source].append(r)
+    for m in todo:
+        report["sources"][m.short_name] = source_report(m, stats[m.short_name], by_source[m.short_name], classes)
+    for name, entry in report["sources"].items():
+        if name in mappings:  # record what is applied now, for the next change check
+            entry["mapping"] = dict(mappings[name].classes)
+    report.setdefault("review_samples", {}).update(review)
+    report.setdefault("appends", []).append({
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "sources": [m.short_name for m in todo],
+        "remapped": remaps,
+        "images": {s: sum(1 for r in records if r.split == s) for s in SPLITS},
+        "max_side": max_side,
+        "jpeg_quality": jpeg_quality,
+    })
+    finalize_report(report)
+    if records:
+        write_md5_index(out / INDEX_FILE, records, index)
+    (out / REPORT_FILE).write_text(json.dumps(report, indent=2))
+    (out / APPEND_MARKER).unlink()
+    shutil.rmtree(work)
+
+    log_summary(report)
+    logger.info(
+        "Appended %d images from %s, re-mapped %s (%.0fs)",
+        len(records), [m.short_name for m in todo] or "no new sources", list(remaps) or "nothing", time.time() - t0,
+    )
+    return report
+
+
+# ---------------------------------------------------------------------- main
+
+
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--raw", required=True, type=Path, help="folder with one subfolder per raw dataset")
+    parser.add_argument("--raw", required=True, type=Path, nargs="+",
+                        help="raw dataset folder(s), searched in order for each source")
     parser.add_argument("--out", required=True, type=Path, help="final merged dataset folder (e.g. on Drive)")
-    parser.add_argument("--work", type=Path, help="local build folder, copied to --out at the end (default: --out)")
+    parser.add_argument("--work", type=Path, help="local build folder, copied to --out at the end")
+    parser.add_argument("--append", nargs="+", metavar="SOURCE",
+                        help="add these sources to the existing --out instead of rebuilding it")
     parser.add_argument("--classes", type=Path, default=REPO / "configs" / "classes.yaml")
     parser.add_argument("--mappings", type=Path, default=REPO / "configs" / "mappings")
     parser.add_argument("--ratios", type=float, nargs=3, default=[0.75, 0.15, 0.10], metavar=("TRAIN", "VAL", "TEST"))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--review-samples", type=int, default=16)
+    parser.add_argument("--max-side", type=int, default=1280, help="append: resize new images to this many px")
+    parser.add_argument("--jpeg-quality", type=int, default=90, help="append: JPEG quality of new images")
     parser.add_argument("--force", action="store_true", help="rebuild even if --out is already done")
     return parser.parse_args(argv)
 
@@ -710,8 +1032,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args(argv)
     try:
-        merge(args.raw, args.out, args.work, args.classes, args.mappings, args.ratios, args.seed,
-              args.review_samples, args.force)
+        if args.append:
+            append(args.raw, args.out, args.append, args.work, args.classes, args.mappings, args.ratios,
+                   args.seed, args.review_samples, args.max_side, args.jpeg_quality)
+        else:
+            merge(args.raw, args.out, args.work, args.classes, args.mappings, args.ratios, args.seed,
+                  args.review_samples, args.force)
     except MergeError as e:
         logger.error("MERGE FAILED: %s", e)
         return 1

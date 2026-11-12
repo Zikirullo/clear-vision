@@ -1,0 +1,7 @@
+folder: src_c
+unlisted: drop
+missing: warn
+map:
+  Cone: traffic_cone
+  walker: person
+  Car: car  # not in src_c: only a warning

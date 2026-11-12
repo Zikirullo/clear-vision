@@ -5,6 +5,76 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: append mode for merging new sources (2026-11-12)
+
+- `scripts/merge_datasets.py`: `append()` / `--append SOURCE ...` adds sources to the
+  existing `datasets/merged/` without rebuilding it.
+  - Requires `.done`, `data.yaml` and `merge_report.json`, and fails if
+    `configs/classes.yaml` differs from the merged `data.yaml`.
+  - Uses the same mapping and validation rules. Sources already in the report are skipped,
+    so re-runs are safe.
+  - De-duplicates by md5 against `md5_index.json` (source-file md5 → `split/name`).
+    - Full merges now write this index.
+    - For older merges it's built once, by hashing the merged images.
+  - Grouped 75/15/10 split of the new images only, with seed 42.
+  - New images are stored as JPEG with the longer side at most `max_side` (1280),
+    quality 90. JPEGs that are already small are copied byte for byte.
+  - Builds in a local work dir, then checks free space on the target with a 10% margin.
+    If it doesn't fit, it stops before writing anything.
+  - Changed mappings: any merged source whose mapping changed has its existing labels
+    re-mapped from its raw labels in the same run. Only changed label files are
+    rewritten.
+    - Change detection uses the `mapping` now recorded per source in the report.
+    - For older reports, it falls back to "a dropped class is now mapped". This covers
+      `pedestrian-crossing: drop` → `crosswalk`.
+  - Updates `merge_report.json`: new and re-mapped source entries, recomputed totals and
+    low-count classes, and an `appends` log. Prints the class table.
+    - An `.append_in_progress` marker covers interrupted runs.
+  - `--raw` now takes several folders, searched in order (`/content/raw` before Drive
+    raw).
+  - New mapping option `missing: warn`: mapped classes the source lacks only warn.
+  - Refactored the report code into `source_report()` and `finalize_report()`, and
+    folder copying into `copy_files()`.
+- New mapping files:
+  - `rf_barricade`: Barricade → barrier.
+  - `rf_sidewalk`: barricade → barrier, plus 13 classes with the same names.
+    `unlisted: drop`, `missing: warn`. Its class names weren't checked against the
+    real `data.yaml`.
+- `notebooks/01_download_datasets.ipynb`:
+  - Added rf_sidewalk (scottsdale/sidewalk-otzhb v1) and rf_barricade
+    (myplace-65bsf/barricade-detection-kaaty v10).
+  - `RAW_TARGET = "drive" | "local"` (local = `/content/raw`), and an `ONLY` filter for
+    all sections.
+  - After the Roboflow downloads, it compares each dataset's classes with its mapping
+    file on GitHub and prints unmapped classes and missing mapped classes.
+  - These were text edits, so Colab's cells, ids and outputs are kept.
+- `notebooks/02_merge_datasets.ipynb`:
+  - New settings: `APPEND`, `NEW_SOURCES`, `LOCAL_RAW`, `APPEND_WORK` and `MAX_SIDE`.
+  - The merge cell calls `append()` or `merge()`.
+  - The review notes explain how to switch pedestrian-crossing to crosswalk.
+- `tests/test_merge.py`: 12 append tests, using `tests/assets/merge/new_raw/src_c` (a
+  2000×1000 PNG augmented pair, a small JPEG, a copy of a merged image, an unlisted
+  class). They cover:
+  - totals checked against the label files on disk
+  - resizing, and the small JPEG unchanged
+  - the pair kept in one split, the md5 index, and building the index for older merges
+  - re-run skip, full-Drive stop with nothing written, unmapped class, no merge yet
+  - re-mapping a changed source, and changed-class detection for old reports
+- Tested:
+  - Full suite 73/73 passed.
+  - Notebook 01's class check was run on fake downloads. It caught `fire hydrant` vs
+    `fire_hydrant` and an unmapped class.
+  - Notebook 02's merge and append cells were run locally on the fake data, and
+    `check_det_dataset` passed after both.
+- Not tested:
+  - Append on the real Drive dataset in Colab: timing of the one-time md5 index, and
+    whether Drive's free-space figure is accurate.
+  - Re-mapping rf_crosswalk on real data.
+  - The real rf_sidewalk and rf_barricade class names.
+- Open:
+  - With the new mapping files, a full rebuild needs rf_sidewalk and rf_barricade in a
+    raw folder.
+
 ## feat: merge raw datasets into one YOLO dataset (2026-11-10)
 
 - `configs/classes.yaml`: the 20 target classes in ID order, person (0) to fire_hydrant (19).

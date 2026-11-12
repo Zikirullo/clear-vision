@@ -1,0 +1,20 @@
+# Many classes; only these are kept. The class names were not checked against the
+# downloaded data.yaml, so mapped names it lacks only warn (notebook 01 prints them).
+folder: rf_sidewalk
+unlisted: drop
+missing: warn
+map:
+  barricade: barrier
+  bollard: bollard
+  scooter: scooter
+  pole: pole
+  fire_hydrant: fire_hydrant
+  bench: bench
+  bicycle: bicycle
+  bus: bus
+  car: car
+  dog: dog
+  motorcycle: motorcycle
+  person: person
+  truck: truck
+  traffic_light: traffic_light
