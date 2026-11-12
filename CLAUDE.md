@@ -12,6 +12,8 @@ short spoken messages (vibration later).
 - Notebooks live in `notebooks/` and are opened in Colab from GitHub.
 - Datasets and runs live on Google Drive in `MyDrive/clear_vision/`:
   `datasets/`, `runs/`, `exports/`.
+- The merged dataset is one verified `datasets/merged.zip` (notebook 02). Notebooks load it
+  with `src/colab_data.py` `prepare_dataset()`, never from a folder of files on Drive.
 
 **Local (MacBook, VS Code):** the real-time app in `src/`. This covers camera
 capture, ONNX Runtime inference, navigation logic, audio output and latency tests.

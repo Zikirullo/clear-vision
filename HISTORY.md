@@ -5,6 +5,87 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: merged dataset as one verified zip on Drive (2026-11-12)
+
+- Why: the merged folder on Drive was incomplete. Drive filled up during the background
+  upload, so only 20,924 train images arrived, with 0 val and 0 test. The notebook still
+  said "copied 100%", and `check_det_dataset` passed only because it read Colab's local
+  cache. The broken folder was deleted.
+- `scripts/merge_datasets.py`, full merge:
+  - Every image goes through the resize step. Images over 1280 px are resized, and PNGs
+    and other formats become JPEG q90. Small JPEGs stay byte-identical. Every merged
+    image is now `.jpg`.
+  - Builds in `/content/merged_tmp`, then writes one file, `datasets/merged.zip`
+    (ZIP_STORED), with `merge_report.json` and `review/` next to it.
+  - Contents of the zip: `data.yaml` (with `path: /content/datasets/merged`), images,
+    labels, the report and `md5_index.json`.
+  - Checks free space before writing, needing the zip + report + review + 10%. If the
+    upload replaces an old zip, that zip's size counts as free. The error message
+    mentions Drive's Trash.
+  - After writing:
+    - `colab_sync()` runs `drive.flush_and_unmount()` then mounts again (outside Colab,
+      `os.sync()`).
+    - It verifies that the size on Drive equals the local size, the file count matches,
+      and `testzip()` passes.
+    - Only then does it write `merged.done` (zip bytes, files, images, free space left).
+    - The old `merged.done` is removed before uploading.
+  - Prints the raw sizes per folder, the images before/after resize, the zip size, the
+    space check and the Drive space left. Image sizes are also saved in the report.
+  - Includes `/content/raw` (rf_sidewalk and rf_barricade from section 2) together with
+    Drive raw. A missing source folder fails with a hint about section 2.
+- Append works on the zip:
+  - It copies the zip to the local disk and unzips it, appends and re-maps (logic moved
+    into `append_to_dataset()`), re-zips, then runs the same space check, upload,
+    verification and `merged.done`.
+  - Review images are added to the existing `review/`.
+- `src/colab_data.py` `prepare_dataset()`:
+  - Requires `merged.done`, copies the zip to `/content`, checks its size against
+    `merged.done`, and unzips to `/content/datasets/merged/`.
+  - Rewrites `data.yaml` with the local path, and compares the image count per split
+    with `merge_report.json` next to the zip.
+  - Runs `check_det_dataset` and returns the `data.yaml` path.
+  - Reuses an unpack from the same zip in the same runtime.
+- `notebooks/02_merge_datasets.ipynb`:
+  - New settings `MERGED_ZIP` and `MAX_SIDE`. Shows Drive free space at setup.
+  - The merge/append writes the zip, and section 4 is `prepare_dataset(MERGED_ZIP)`.
+  - Review images are read from next to the zip.
+  - The full merge also reads `LOCAL_RAW`.
+  - The later "2.3 report" and training notebooks are not in the repo yet. They must use
+    `prepare_dataset()` too.
+- `CLAUDE.md`: a rule that the merged dataset is a verified zip loaded with
+  `prepare_dataset()`.
+- Tests: `tests/test_merge.py` was rewritten for the zip, with 40 merge and append tests.
+  Added `tests/test_colab_data.py` with 5 tests. New cases:
+  - Full merge:
+    - zip, report and done written, ZIP_STORED, review kept outside the zip
+    - resize, including a source from a second raw folder
+    - a missing source folder fails
+  - Drive safety:
+    - full Drive stops before writing anything
+    - a truncated upload or a corrupt byte (same size) never gets `merged.done`
+  - Append:
+    - Drive full leaves the zip and done unchanged
+    - a truncated upload removes done
+  - `prepare_dataset`:
+    - unpacks, rewrites the path and runs Ultralytics' check
+    - reuses an earlier unpack, requires `merged.done`
+    - detects an image-count or zip-size mismatch
+- Tested:
+  - Full suite 96/96 passed. The merge and colab_data tests passed 3 more times.
+  - Notebook 02 sections 2 → 3 → 4 were run locally with a fake Roboflow:
+    - the download went to the local raw folder
+    - the full merge read both raw folders and produced a verified zip
+    - `prepare_dataset` succeeded
+    - a re-run skipped the merge
+- Not tested:
+  - Colab:
+    - `drive.flush_and_unmount()` and the remount in the middle of a run (it may ask to
+      authorize again)
+    - whether Drive's free-space figure is accurate
+    - real sizes and timing
+  - Whether a replaced zip still takes space as an old version or in the Trash.
+    Verification would catch a failed upload.
+
 ## feat: notebook 02 downloads new sources before appending (2026-11-12)
 
 - Why: every Colab notebook runs in its own runtime, so files that notebook 01 downloads
