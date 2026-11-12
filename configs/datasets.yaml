@@ -1,0 +1,15 @@
+# Roboflow datasets, downloaded by notebooks 01 and 02 (scripts/download_datasets.py).
+# name: folder under datasets/raw/ and the mapping file configs/mappings/<name>.yaml.
+# If a version fails, the project's latest version is used instead.
+# Removed: blindspot-fmcu0/sidewalk-obstacles (its download failed: no versions).
+roboflow:
+  - {name: rf_bollard, workspace: blindwalk, project: bollard-v16ec, version: 1}
+  - {name: rf_pole_curb_stairs, workspace: object-detection-3n5oe, project: final-detection-9g3ji, version: 6}
+  - {name: rf_scooter_bollard, workspace: kyonggi-university-r7unh, project: protection_zone, version: 4}
+  - {name: rf_stairs, workspace: tom-lai-8bp7n, project: stairs-i2yia, version: 3}
+  - {name: rf_pothole, workspace: georgia-institute-of-technology-bwqcc, project: pothole-detection-mev9q, version: 6}
+  - {name: rf_crosswalk, workspace: distracted-driving-yu8re, project: pedestrian-crosswalk-c0irg, version: 1}
+  - {name: rf_cone, workspace: grape-disease-prediction, project: general-cone-detection-ow4vb, version: 2}
+  - {name: rf_manhole, workspace: workspace-an3qw, project: manhole-j9klz, version: 2}
+  - {name: rf_sidewalk, workspace: scottsdale, project: sidewalk-otzhb, version: 1}
+  - {name: rf_barricade, workspace: myplace-65bsf, project: barricade-detection-kaaty, version: 10}

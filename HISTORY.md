@@ -5,6 +5,56 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: notebook 02 downloads new sources before appending (2026-11-12)
+
+- Why: every Colab notebook runs in its own runtime, so files that notebook 01 downloads
+  to `/content/raw` are not visible to notebook 02.
+- `scripts/download_datasets.py`: the download code from notebook 01, now shared by both
+  notebooks.
+  - Folder helpers: `is_done`, `skip_if_done`, `fresh_staging`, `publish` (staging →
+    raw, then `.done`) and `record_failure`.
+  - `colab_secret()` reads Colab Secrets.
+  - Roboflow: `download_roboflow` keeps the latest-version fallback, and
+    `download_roboflow_datasets` skips finished downloads and returns failures.
+  - Class check: `read_class_names`, `mapping_problems`, `mappings_from_dir` and
+    `check_mappings` print classes missing from the mapping files.
+  - It logs with `logging` instead of `print`.
+- `configs/datasets.yaml`: the Roboflow dataset list moved here from notebook 01's
+  Settings cell, so both notebooks read one list.
+- `notebooks/01_download_datasets.ipynb` works as before:
+  - Setup now clones or updates the repo (like notebook 02) and imports the module.
+  - The Roboflow cell is 3 calls. The class check reads the mapping files from the
+    clone instead of GitHub URLs.
+  - Open Images, COCO, Mendeley and Summary are unchanged, through the thin
+    `fresh_staging` and `record_failure` wrappers.
+  - Outputs of the 3 rewritten cells were cleared. Other cells and Colab outputs were
+    kept.
+- `notebooks/02_merge_datasets.ipynb`:
+  - New setting `DOWNLOAD_NEW = ["rf_sidewalk", "rf_barricade"]` (`[]` = skip).
+  - New section "2. Download new sources" before the merge/append:
+    - Installs roboflow and reads `ROBOFLOW_API_KEY` from Secrets.
+    - Downloads only those sources to `LOCAL_RAW` (`/content/raw`), skipping any with
+      `.done`.
+    - Prints classes missing from their mapping files, and stops if a download failed.
+  - The append then finds the files in the same runtime.
+- `tests/test_download.py`: 14 tests with a fake Roboflow. They cover:
+  - downloads marked done, skipping finished ones, replacing partial ones
+  - latest-version fallback, failures recorded while the rest continue, missing key
+  - `select_datasets`, and the real dataset list (the 2 new sources, a mapping file for
+    each name)
+  - class-name reading, mapping problems and the class-check log
+  - both notebooks compile, no copied download code, and notebook 02 downloads before
+    the append
+- Tested:
+  - Full suite 87/87 passed.
+  - Notebook 02's download, append and check cells were run together locally with a fake
+    roboflow module and Colab secret. The download went to the local raw folder, a
+    re-run skipped it (`.done`), and the append found it and passed
+    `check_det_dataset`.
+- Not tested:
+  - Real Roboflow downloads in Colab.
+  - Notebook 01's new setup cell (repo clone) in Colab.
+
 ## feat: append mode for merging new sources (2026-11-12)
 
 - `scripts/merge_datasets.py`: `append()` / `--append SOURCE ...` adds sources to the
