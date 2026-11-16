@@ -90,3 +90,34 @@ def prepare_dataset(
         check_det_dataset(str(data_yaml))
     marker.write_text(json.dumps(info))
     return data_yaml
+
+
+BALANCED_TXT = "train_balanced.txt"
+BALANCED_YAML = "data_balanced.yaml"
+
+
+def apply_balanced(zip_path: Path | str = DRIVE_ZIP, dest: Path | str = LOCAL_DATASET) -> Path:
+    """Use the balanced train list from notebook 03 on a dataset unpacked by prepare_dataset().
+
+    Copies train_balanced.txt and data_balanced.yaml from next to merged.zip into `dest`,
+    sets `path`, and returns the yaml to train with. Fails if they were made for another
+    merged.zip (merged.done differs) or list an image that is missing.
+    """
+    zip_path, dest = Path(zip_path), Path(dest)
+    txt, yml = zip_path.with_name(BALANCED_TXT), zip_path.with_name(BALANCED_YAML)
+    if not (txt.exists() and yml.exists()):
+        raise RuntimeError(f"{txt.name} / {yml.name} missing next to {zip_path.name}: run notebook 03 first.")
+    data = yaml.safe_load(yml.read_text())
+    done = json.loads(zip_path.with_suffix(".done").read_text())
+    if data.get("merged_done") != done:
+        raise RuntimeError(f"{yml.name} was made for an older {zip_path.name}: re-run notebook 03.")
+    lines = [ln for ln in txt.read_text().splitlines() if ln]
+    missing = [ln for ln in set(lines) if not (dest / ln.removeprefix("./")).exists()]
+    if missing:
+        raise RuntimeError(f"{len(missing)} images in {txt.name} are not in {dest}, e.g. {missing[0]}")
+    shutil.copyfile(txt, dest / BALANCED_TXT)
+    data["path"] = str(dest.absolute())
+    out = dest / BALANCED_YAML
+    out.write_text(yaml.safe_dump(data, sort_keys=False))
+    logger.info("Balanced train list: %d lines (%d images) -> %s", len(lines), len(set(lines)), out)
+    return out

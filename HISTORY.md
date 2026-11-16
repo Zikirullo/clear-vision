@@ -5,6 +5,70 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: dataset report notebook with sanity checks and balanced train list (2026-11-16)
+
+- Why: see what's in the merged dataset, catch bad mappings and split leaks, and give
+  training a balanced train list before the first real training run.
+- `scripts/dataset_report.py`:
+  - `scan_dataset()` reads every label file and image header from the local unpack.
+    Each box gets its split, source (file name prefix), class, size and a pseudo flag
+    (the last N lines of a label file, where N is the image's row count in
+    `pseudo_labels.csv`; if the CSV doesn't match the file, it's counted as original with
+    a warning).
+  - Box sizes use COCO bins (small < 32², medium < 96²), measured at the 640 px training
+    size.
+  - `sanity_checks()`:
+    - FAIL on an image in two splits (by name and by md5) or class IDs outside 0..19 or
+      malformed lines.
+    - FAIL on an image count that differs from `merge_report.json`.
+    - WARN on empty label files in val/test. The merge keeps background images on purpose,
+      so they aren't broken.
+  - `balanced_train()`:
+    - An image with a focus class is listed `ceil(target / train images with the class)`
+      times, at most 4. The target is the median train images per class.
+    - Person-only images are randomly capped at 4,000 (seeded). Everything else is listed
+      once.
+    - Lines are `./images/train/<name>`; Ultralytics resolves `./` against the list's
+      folder.
+  - `write_balanced()` writes `train_balanced.txt` and `data_balanced.yaml`. The yaml
+    stores merged.done's content and the balance settings.
+  - `example_grid()`: 4x4 images of one class. Its original boxes are yellow, its
+    pseudo-labels orange, other classes thin gray.
+- `src/colab_data.py` `apply_balanced()`: after `prepare_dataset()`, it copies the list into
+  the dataset and sets `path`. It refuses a list made for another merged.zip
+  (merged.done differs) or one that names a missing image.
+- `notebooks/03_dataset_report.ipynb` (CPU):
+  - Unpacks with `prepare_dataset()` and never reads images from Drive.
+  - Charts: images per split; boxes per class per split (original vs pseudo, stacked);
+    size share per class; boxes per source per class (top 7 + Other, with a table).
+  - An ipywidgets class dropdown with shuffle.
+  - The class table ("needs more data" under 300 train boxes) and the sanity checks.
+  - Writes the two balanced files next to merged.zip, but refuses if a check FAILed.
+  - Chart colours come from the dataviz skill's default palette. The validator passes;
+    three slots are under 3:1 contrast, so the source chart gets a table.
+- Tests: 173 pass. New `tests/test_dataset_report.py` (16):
+  - size bins, source prefix, scan counts against the report
+  - pseudo counted separately (after a fake notebook-09 run)
+  - the class table
+  - every sanity check, failing on an injected fault: a copy in another split, the same
+    name in two splits, ID 19 and a malformed line, an empty val label
+  - repeat factors and the cap, person-only cap, determinism
+  - `apply_balanced()` + `check_det_dataset` + a real Ultralytics `YOLODataset` that keeps
+    the repeated lines
+  - stale or missing lists refused, the grid
+- Also ran every notebook code cell except Colab setup locally on the pseudo-labeled
+  fixture zip, and looked at the charts.
+- Not tested or open:
+  - The real run in Colab. md5 of ~5.7 GB is likely a few minutes; set
+    `HASH_IMAGES = False` to skip it.
+  - The ipywidgets dropdown only ran headless, not clicked.
+  - The training notebook doesn't exist yet. It should call `apply_balanced()`.
+  - Ultralytics writes `labels/train.cache` for both the balanced and the plain list, so
+    switching between them rescans once.
+  - Repeating focus images also repeats the other boxes in them.
+
+---
+
 ## feat: pseudo-label missing COCO objects in merged.zip (2026-11-16)
 
 - Why: each source labels only its own classes (people in rf_cone images aren't boxed).

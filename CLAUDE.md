@@ -14,6 +14,8 @@ short spoken messages (vibration later).
   `datasets/`, `runs/`, `exports/`.
 - The merged dataset is one verified `datasets/merged.zip` (notebook 02). Notebooks load it
   with `src/colab_data.py` `prepare_dataset()`, never from a folder of files on Drive.
+- Notebook 03 writes `train_balanced.txt` + `data_balanced.yaml` next to the zip; training
+  applies them after `prepare_dataset()` with `apply_balanced()`.
 
 **Local (MacBook, VS Code):** the real-time app in `src/`. This covers camera
 capture, ONNX Runtime inference, navigation logic, audio output and latency tests.
