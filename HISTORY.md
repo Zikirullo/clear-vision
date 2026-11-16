@@ -5,6 +5,90 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: zero-training open-vocab and hybrid detector backends (2026-11-16)
+
+- Why: detect sidewalk hazards (stairs, cones, poles, potholes, ...) before any
+  fine-tuning, using a text-prompted open-vocabulary model.
+- `src/detector.py`:
+  - Backends: `ultralytics | onnx | openvocab | hybrid`, chosen by `detector.backend` or
+    `python -m src.main --backend ...`. `build_detector()` builds any of them.
+  - `OpenVocabDetector`: YOLOE `yoloe-11s-seg.pt`, falling back to YOLO-World
+    `yolov8s-worldv2.pt` if YOLOE is missing from Ultralytics or fails to load.
+    - `set_classes` runs once with the phrases from the new `configs/prompts.yaml`. A class
+      may have several phrases, and they all map back to our class name. Masks are
+      ignored; it returns plain `Detection`s.
+    - The prompted model is saved to `models/openvocab/<model>-<hash>.pt`. The hash covers
+      the model, phrases and mapping. Later starts load it in about 1 s with no text
+      encoder (the first prompting needs the ~600 MB MobileCLIP download).
+    - `runtime: onnx` exports the prompted model to ONNX after `set_classes`, so it runs
+      without the text encoder.
+  - `HybridDetector`: yolo11n every frame for the COCO classes, plus YOLOE every
+    `openvocab_every` frames for the 10 non-COCO classes. Between runs it reuses the last
+    YOLOE boxes ("when unsure, warn"). The two are merged with per-class NMS, then an
+    agnostic NMS (IoU 0.7) that ranks by confidence divided by the class threshold.
+    yolo11n calls bollards and cones "fire hydrant", so the open-vocab label usually wins.
+  - Per-class thresholds `class_conf` (COCO 0.35, rare 0.15, pole 0.12), plus `conf` 0.4
+    for classes not listed.
+  - All backends output `configs/classes.yaml` names (`fire_hydrant`, not
+    `fire hydrant`). `select_device("auto")` now also picks CUDA (Colab).
+- `configs/default.yaml`:
+  - The `detector:` section is restructured into `coco:`, `openvocab:` and `hybrid:`.
+  - The default backend stays `ultralytics`.
+  - Severity entries for the new classes: stairs, pothole and scooter 3; pole, bollard,
+    cone, barrier, curb and manhole 2. Keys renamed to underscores.
+- `src/navigator.py`: speaks underscores as spaces ("Traffic cone, left").
+- `src/main.py`:
+  - `--backend` flag.
+  - If the openvocab or hybrid backend fails to load, it falls back to COCO and says
+    "Hazard detector failed. Detecting people and vehicles only."
+  - FPS bug fixed: it averaged 1/interval, which read ~14 FPS for hybrid's alternating
+    frames when the real rate was ~11. It now averages the interval and logs the frame
+    count per stats window.
+- `scripts/compare_detectors.py`:
+  - FPS and per-class counts per backend on images and videos.
+  - `--eval` extracts only `images/test`, `labels/test` and `data.yaml` from `merged.zip`
+    (needs `merged.done`) into `/content/datasets/merged_test/`. It checks that the zip's
+    class names match `classes.yaml`, then computes mAP50 per class with its own
+    COCO-style AP. Hybrid isn't one Ultralytics model, so `model.val()` can't score it.
+- `notebooks/08_compare_detectors.ipynb`: runs the eval on a GPU and shows one table,
+  class | COCO-only | openvocab | hybrid mAP50, with the rare classes highlighted. It also
+  shows GPU FPS and counts, and saves JSON to `runs/compare_detectors/`.
+- `.gitignore`: `models/*.ts` (MobileCLIP, 600 MB) and `models/openvocab/`.
+  `requirements.txt`: the Ultralytics CLIP package.
+- Measured on M1 CPU, macOS 14 (no MPS):
+  - yolo11n: 52 ms at 640.
+  - YOLOE-11s: 62 ms at 416, 75 ms at 480, 165 ms at 640.
+  - ONNX Runtime was slower for YOLOE (~180-230 ms), so `runtime: pt` is the default.
+  - Hybrid live with the debug window on a 720p video: 11.0-11.6 FPS (55-58 frames per
+    5 s) with openvocab imgsz 416 and every 2nd frame. Frame-to-decision averaged
+    86-91 ms, max 142 ms. The settings tried before were 480 every 2nd frame (10.0-10.6
+    FPS) and 480 every 3rd frame (~12.3 FPS, but older hazard boxes).
+  - Default backend unchanged: ~21 FPS, 64 ms.
+- Prompts were tuned on 24 Wikimedia street photos (bollards, manholes, stairs, potholes,
+  cones, utility poles):
+  - Synonyms raised the bollard, pothole and stairs scores. "power pole" helped poles most.
+  - Open-vocab hit 13/24 photos at 416.
+  - In the live hybrid run, stairs, traffic cones, poles, potholes, bollards, manholes and
+    barriers were all spoken.
+- Tests: 140 pass.
+  - New `tests/test_openvocab.py` (25, fake models only): vocabulary and hash, phrase to
+    class mapping, per-class thresholds, prompt once then cache, YOLO-World fallback, ONNX
+    export, NMS and merge, hybrid scheduling and reuse, the factory class split,
+    `--backend`, and the spoken fallback.
+  - New `tests/test_compare_detectors.py` (15): AP math, extracting only the test split,
+    reuse, the class mismatch check, frames, the tables.
+  - `test_detector.py` and `test_navigator.py` updated for the new config.
+- Not tested or open:
+  - The live webcam, pointed at photos on a screen. Only tested on a video of the photos;
+    the camera's own CPU use may cost some FPS (`openvocab_every: 3` gives more margin).
+  - The notebook in Colab: sections 2-4 ran locally on a fake `merged.zip`. No real mAP
+    numbers yet.
+  - The real YOLO-World fallback (only mocked; it downloads another ~340 MB CLIP).
+  - Poles stay the weakest class (scores 0.1-0.26).
+  - Box-height distance is poor for flat hazards (curb, pothole, manhole, crosswalk).
+  - Crosswalk severity is 1, so a near crosswalk straight ahead is still announced as
+    urgent.
+
 ## feat: merged dataset as one verified zip on Drive (2026-11-12)
 
 - Why: the merged folder on Drive was incomplete. Drive filled up during the background

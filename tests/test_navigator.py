@@ -13,6 +13,7 @@ from src.detection import Detection
 from src.navigator import (
     Message,
     NavigatorConfig,
+    build_phrase,
     choose_message,
     direction,
     proximity,
@@ -162,3 +163,13 @@ def test_navigator_imports_no_opencv_or_model() -> None:
         [sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=True
     )
     assert out.stdout.strip() == ""
+
+
+def test_phrase_speaks_underscored_classes_as_words() -> None:
+    assert build_phrase("traffic_cone", "left", "far") == "Traffic cone, left"
+    assert build_phrase("fire_hydrant", "ahead", "near") == "Fire hydrant ahead, close"
+
+
+@pytest.mark.parametrize("name", ["stairs", "pothole", "scooter"])
+def test_fall_and_collision_hazards_are_severe(cfg: NavigatorConfig, name: str) -> None:
+    assert severity(name, cfg) == 3

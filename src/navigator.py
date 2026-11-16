@@ -89,8 +89,8 @@ def message_key(det: Detection, cfg: NavigatorConfig = DEFAULT_CONFIG) -> str:
 
 
 def build_phrase(class_name: str, where: Direction, how_close: Proximity) -> str:
-    """Short phrase such as "Car ahead, close" or "Person, left"."""
-    name = class_name.capitalize()
+    """Short phrase such as "Car ahead, close" or "Traffic cone, left"."""
+    name = class_name.replace("_", " ").capitalize()
     text = f"{name} ahead" if where == "ahead" else f"{name}, {where}"
     if how_close == "near":
         text += ", close"

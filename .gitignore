@@ -9,3 +9,5 @@ logs/
 # Model weights are downloaded or exported, not committed
 models/*.pt
 models/*.onnx
+models/*.ts
+models/openvocab/

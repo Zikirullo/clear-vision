@@ -4,6 +4,7 @@ Run from the repo root:
     python -m src.main                       # webcam from config
     python -m src.main --source clip.mp4     # recorded walk
     python -m src.main --no-window --mute    # headless, log only
+    python -m src.main --backend hybrid      # COCO model + zero-training hazard model
 
 Press q in the window (or Ctrl+C in the terminal) to quit.
 """
@@ -27,7 +28,7 @@ import yaml
 
 from src.camera import Camera
 from src.detection import Detection
-from src.detector import Detector
+from src.detector import BACKENDS, DetectorBackend, build_detector
 from src.navigator import Message, NavigatorConfig, choose_message, direction, proximity, risk
 from src.speaker import Speaker
 
@@ -53,6 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="YAML config file")
     parser.add_argument("--no-window", action="store_true", help="run without the debug window")
     parser.add_argument("--mute", action="store_true", help="don't speak (messages are still logged)")
+    parser.add_argument("--backend", choices=BACKENDS, help="detector backend (default: config)")
     return parser.parse_args(argv)
 
 
@@ -176,6 +178,7 @@ class CameraSupervisor:
 @dataclass
 class Timings:
     fps: float = 0.0
+    frame_interval: float = 0.0
     capture_age_ms: float = 0.0
     inference_ms: float = 0.0
     total_ms: float = 0.0
@@ -240,7 +243,7 @@ class App:
         self.nav_cfg = NavigatorConfig.from_dict(cfg.get("navigator", {}))
         self.speaker: Speaker | None = None if args.mute else Speaker.from_config(cfg.get("speaker", {}))
         self.session = SessionLog(LOG_DIR, muted=args.mute)
-        self.detector: Detector | None = None
+        self.detector: DetectorBackend | None = None
 
         self.last_spoken: dict[str, float] = {}
         self.camera_lost_announced = False
@@ -269,10 +272,8 @@ class App:
     def run(self) -> int:
         if self.speaker is not None:
             self.speaker.start()
-        try:
-            self.detector = Detector.from_config(self.cfg.get("detector", {}))
-        except Exception:
-            logger.exception("Could not load the detection model")
+        self.detector = self._load_detector()
+        if self.detector is None:
             self.system_message("Detection model failed. Clear Vision cannot run.", "urgent")
             self._wait_for_speech(5.0)
             return 1
@@ -288,6 +289,25 @@ class App:
         except KeyboardInterrupt:
             logger.info("Interrupted (Ctrl+C)")
         return 0
+
+    def _load_detector(self) -> DetectorBackend | None:
+        """Build the configured backend. If an open-vocab backend fails, fall back
+        to the COCO model and say so out loud; None if nothing loads."""
+        det_cfg = self.cfg.get("detector", {})
+        backend = self.args.backend or det_cfg.get("backend", "ultralytics")
+        try:
+            return build_detector(det_cfg, backend)
+        except Exception:
+            logger.exception("Could not load the %s detector", backend)
+        if backend in ("openvocab", "hybrid"):
+            try:
+                detector = build_detector(det_cfg, "ultralytics")
+            except Exception:
+                logger.exception("Could not load the fallback COCO detector")
+                return None
+            self.system_message("Hazard detector failed. Detecting people and vehicles only.", "urgent")
+            return detector
+        return None
 
     def _loop(self) -> None:
         assert self.detector is not None
@@ -311,7 +331,7 @@ class App:
                 return
             now = time.monotonic()
             if now - last_stats >= self.stats_interval_s:
-                self._log_stats()
+                self._log_stats(now - last_stats)
                 last_stats = now
 
     def _check_camera(self) -> None:
@@ -344,9 +364,12 @@ class App:
             self.announce(msg, t.total_ms)
 
         if last_ts is not None and ts > last_ts:
-            # Exponential moving average of processed frames per second.
-            fps = 1.0 / (ts - last_ts)
-            t.fps = fps if t.fps == 0 else 0.9 * t.fps + 0.1 * fps
+            # Exponential moving average of the frame interval, inverted. Averaging
+            # 1/interval instead would overstate FPS when fast and slow frames
+            # alternate (hybrid backend: ~21 and ~8 FPS read as ~14, really ~11).
+            interval = ts - last_ts
+            t.frame_interval = interval if t.frame_interval == 0 else 0.9 * t.frame_interval + 0.1 * interval
+            t.fps = 1.0 / t.frame_interval
 
         if not self.args.no_window:
             shown = frame.copy()
@@ -355,13 +378,14 @@ class App:
             draw_overlay(shown, t, self.detector.device, self.cameras.healthy, recent)
             cv2.imshow(WINDOW, shown)
 
-    def _log_stats(self) -> None:
+    def _log_stats(self, elapsed_s: float) -> None:
         t = self.timings
         if t.history:
             avg = sum(t.history) / len(t.history)
             logger.info(
-                "FPS %.1f | capture age %.1f ms | inference %.1f ms | frame->decision avg %.1f ms max %.1f ms",
-                t.fps, t.capture_age_ms, t.inference_ms, avg, max(t.history),
+                "FPS %.1f (%d frames in %.1f s) | capture age %.1f ms | inference %.1f ms | "
+                "frame->decision avg %.1f ms max %.1f ms",
+                t.fps, len(t.history), elapsed_s, t.capture_age_ms, t.inference_ms, avg, max(t.history),
             )
             t.history.clear()
 

@@ -1,0 +1,31 @@
+# Text prompts for the open-vocab detector (YOLOE / YOLO-World), one entry per class
+# in configs/classes.yaml. A value is a phrase or a list of phrases; every phrase of a
+# class is detected as that class. Natural phrases work better than our class IDs
+# ("traffic cone", not "traffic_cone").
+# The synonyms below were picked on 24 Wikimedia street photos (2026-11-16): they raised
+# the best bollard, pothole and stairs scores. "power pole" helped poles most, but pole
+# scores stay low, so pole has its own threshold (0.12) in default.yaml.
+#
+# Changing a prompt changes the cached prompted model's hash, so the text encoder
+# runs once more at the next start (needs internet the first time).
+prompts:
+  person: person
+  bicycle: bicycle
+  car: car
+  motorcycle: motorcycle
+  bus: bus
+  truck: truck
+  dog: dog
+  scooter: electric scooter
+  pole: [pole, utility pole, power pole, lamp post, sign post]
+  bollard: [bollard, short post]
+  traffic_cone: traffic cone
+  barrier: road barrier
+  curb: curb
+  stairs: [stairs, staircase, outdoor steps]
+  pothole: [pothole, hole in the road]
+  manhole: [manhole cover, manhole]
+  crosswalk: crosswalk
+  traffic_light: traffic light
+  bench: bench
+  fire_hydrant: fire hydrant

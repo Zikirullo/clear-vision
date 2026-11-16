@@ -7,24 +7,67 @@ camera:
   stale_timeout: 2.0   # seconds without a new frame before camera is unhealthy
 
 detector:
-  model_path: models/yolo11n.pt   # auto-downloaded on first use
-  conf: 0.4                       # minimum confidence to keep a detection
-  imgsz: 640                      # inference size in pixels
-  device: auto                    # auto | mps | cpu (auto uses MPS only on macOS 15+)
+  backend: ultralytics            # ultralytics | onnx | openvocab | hybrid (or --backend)
+  device: auto                    # auto | cuda | mps | cpu (auto uses MPS only on macOS 15+)
   cpu_threads: 4                  # M1 has 4 performance cores; 4 beat 8 in benchmarks
-  allowed_classes:
-    - person
-    - bicycle
-    - car
-    - motorcycle
-    - bus
-    - truck
-    - bench
-    - chair
-    - dog
-    - fire hydrant
-    - stop sign
-    - potted plant
+  classes_file: configs/classes.yaml
+  prompts_file: configs/prompts.yaml   # open-vocab text phrases per class
+  conf: 0.4                       # threshold for classes missing from class_conf
+  # Per-class thresholds. Open-vocab scores run lower than closed-set ones, so rare
+  # (non-COCO) classes start at 0.15; COCO classes at 0.35.
+  class_conf:
+    person: 0.35
+    bicycle: 0.35
+    car: 0.35
+    motorcycle: 0.35
+    bus: 0.35
+    truck: 0.35
+    dog: 0.35
+    traffic_light: 0.35
+    bench: 0.35
+    fire_hydrant: 0.35
+    scooter: 0.15
+    pole: 0.12                    # "pole" scores lowest; 0.12 hit 3 of 4 pole photos
+    bollard: 0.15
+    traffic_cone: 0.15
+    barrier: 0.15
+    curb: 0.15
+    stairs: 0.15
+    pothole: 0.15
+    manhole: 0.15
+    crosswalk: 0.15
+  coco:                           # closed-set model (backends ultralytics, onnx, hybrid)
+    model_path: models/yolo11n.pt   # auto-downloaded on first use
+    onnx_path: models/yolo11n.onnx  # exported from model_path on first use
+    imgsz: 640                      # inference size in pixels
+    allowed_classes:
+      - person
+      - bicycle
+      - car
+      - motorcycle
+      - bus
+      - truck
+      - bench
+      - chair
+      - dog
+      - fire hydrant
+      - stop sign
+      - potted plant
+      - traffic light
+  openvocab:                      # zero-training model (backends openvocab, hybrid)
+    model_path: models/yoloe-11s-seg.pt          # auto-downloaded on first use
+    fallback_model_path: models/yolov8s-worldv2.pt  # used if YOLOE is unavailable
+    cache_dir: models/openvocab   # prompted models, one per vocabulary hash
+    runtime: pt                   # pt | onnx. On the M1 CPU, ONNX was slower (~230 vs ~75 ms)
+    imgsz: 416                    # M1 CPU: 416 ~62 ms, 480 ~75 ms, 640 ~165 ms. 416 found as many
+                                  # hazards as 480 on test photos and keeps hybrid above 10 FPS
+  hybrid:
+    openvocab_every: 2            # run the open-vocab model every Nth frame. Live on M1 with the
+                                  # window: 2 -> ~11 FPS, 3 -> ~12 FPS (hazard boxes one frame older)
+    coco_onnx: false              # run the COCO model from onnx_path
+    nms_iou: 0.5                  # per-class NMS across both models
+    agnostic_iou: 0.7             # overlapping boxes of different classes keep one (yolo11n calls
+                                  # bollards and cones "fire hydrant"); null = off
 
 navigator:
   # Direction: frame split by box center_x (0 = left edge, 1 = right edge)
@@ -48,12 +91,22 @@ navigator:
     bicycle: 3
     person: 2
     dog: 2
+    scooter: 3
+    stairs: 3                # fall risk
+    pothole: 3               # fall risk
     pole: 2
-    fire hydrant: 2
+    bollard: 2
+    traffic_cone: 2
+    barrier: 2
+    curb: 2
+    manhole: 2
+    fire_hydrant: 2
     bench: 1
     chair: 1
-    potted plant: 1
-    stop sign: 1
+    potted_plant: 1
+    stop_sign: 1
+    traffic_light: 1
+    crosswalk: 1
   default_severity: 1        # classes missing from the severity table
   risk_threshold: 1.0        # objects below this risk are not announced
   cooldown: 4.0              # seconds before repeating the same class + direction

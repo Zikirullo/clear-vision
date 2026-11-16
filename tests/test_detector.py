@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 import yaml
 
-from src.detector import Detection, Detector
+from src.detector import Detection, Detector, build_detector, canonical_name
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLE_IMAGE = ROOT / "tests" / "assets" / "coco_street_000000011197.jpg"
@@ -29,9 +29,9 @@ def detector_cfg() -> dict:
 
 @pytest.fixture(scope="module")
 def detector(detector_cfg: dict) -> Detector:
-    cfg = dict(detector_cfg)
-    cfg["model_path"] = str(ROOT / cfg["model_path"])
-    return Detector.from_config(cfg)
+    built = build_detector(detector_cfg, "ultralytics")
+    assert isinstance(built, Detector)
+    return built
 
 
 @pytest.fixture(scope="module")
@@ -59,12 +59,13 @@ def test_finds_person_or_car(detector: Detector, street_image: np.ndarray) -> No
 def test_only_allowed_classes_and_normalized_boxes(
     detector: Detector, street_image: np.ndarray, detector_cfg: dict
 ) -> None:
-    allowed = set(detector_cfg["allowed_classes"])
+    allowed = {canonical_name(n) for n in detector_cfg["coco"]["allowed_classes"]}
+    class_conf = detector_cfg["class_conf"]
     for d in detector.detect(street_image):
         assert d.class_name in allowed
         assert 0.0 <= d.x1 < d.x2 <= 1.0
         assert 0.0 <= d.y1 < d.y2 <= 1.0
-        assert d.confidence >= detector.conf
+        assert d.confidence >= class_conf.get(d.class_name, detector.conf)
 
 
 def test_inference_time_640px(

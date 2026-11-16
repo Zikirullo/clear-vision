@@ -45,7 +45,10 @@ camera.py → detector.py → tracker → navigator.py → speaker.py
 ```
 
 - `camera.py`: threaded capture that keeps only the latest frame and drops stale ones.
-- `detector.py`: model inference (ONNX Runtime locally).
+- `detector.py`: model inference. Backends (`detector.backend` or `--backend`):
+  `ultralytics` and `onnx` (COCO yolo11n), `openvocab` (YOLOE prompted from
+  `configs/prompts.yaml`, no training), `hybrid` (yolo11n every frame + YOLOE for the
+  non-COCO classes every 2nd frame). All return `Detection`s with `configs/classes.yaml` names.
 - tracker: keeps object IDs stable across frames.
 - `navigator.py`: works out direction, distance and a risk score for each object,
   then decides what to say.
@@ -74,5 +77,7 @@ cooldowns, priorities and model paths. Never hard-code them.
 source .venv/bin/activate
 pip install -r requirements.txt
 python -m src.main           # run the app
+python -m src.main --backend hybrid   # zero-training hazard detection
+python scripts/compare_detectors.py photos/   # FPS + counts per backend
 pytest                       # run tests
 ```
