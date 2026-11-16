@@ -75,6 +75,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 SPLITS = ("train", "val", "test")
 DROP = "drop"
 WORK_MARKER = ".merge_work"  # only folders carrying this marker are ever deleted
+PREPARED_MARKER = ".prepared"  # written by src/colab_data.py prepare_dataset(); never zipped
 REPORT_FILE = "merge_report.json"
 INDEX_FILE = "md5_index.json"  # md5 of each merged image's source file -> "split/name"
 LOCAL_DATASET = "/content/datasets/merged"  # data.yaml `path`; prepare_dataset() rewrites it
@@ -718,8 +719,15 @@ def check_free_space(target: Path, needed: int, reclaimable: int = 0) -> None:
 
 
 def make_zip(dataset: Path, dest: Path) -> int:
-    """ZIP_STORED archive of `dataset` (JPEGs don't compress). Returns the file count."""
-    files = sorted(p for p in dataset.rglob("*") if p.is_file() and p.name != WORK_MARKER)
+    """ZIP_STORED archive of `dataset` (JPEGs don't compress). Returns the file count.
+
+    Skips our markers (`.merge_work`, prepare_dataset()'s `.prepared`) and Ultralytics'
+    `labels/*.cache`, which exist when the dataset was unpacked or trained on in Colab.
+    """
+    files = sorted(
+        p for p in dataset.rglob("*")
+        if p.is_file() and p.name not in (WORK_MARKER, PREPARED_MARKER) and p.suffix != ".cache"
+    )
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
         for path in tqdm(files, desc=f"zip {dest.name}"):
             zf.write(path, path.relative_to(dataset).as_posix())

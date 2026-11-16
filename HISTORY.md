@@ -5,6 +5,70 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: pseudo-label missing COCO objects in merged.zip (2026-11-16)
+
+- Why: each source labels only its own classes (people in rf_cone images aren't boxed).
+  Training learns to ignore those objects. In notebook 08, correct person and car
+  detections in non-COCO images also counted as false positives (person 0.39, car 0.21
+  mAP50).
+- `scripts/pseudo_label.py`:
+  - Loads the data with `prepare_dataset(merged.zip)` into `/content` (never reads images
+    from Drive) and loads yolo11x once.
+  - Predicts person, bicycle, car, motorcycle, bus, truck, dog, bench, fire hydrant and
+    traffic light, mapped to our class IDs, on every image of a non-COCO source. All
+    splits are covered. The source comes from the file name prefix, with the longest source
+    name winning. `coco_subset` and `openimages` are skipped (configurable).
+  - A box is added only if its confidence is >= 0.5 and no existing box of the same class
+    overlaps it with IoU > 0.5. Both values are configurable.
+  - Original lines are never touched; new lines are appended.
+  - Writes `labels_original.zip` (original content of only the changed label files) and
+    `pseudo_labels.csv` (image, split, source, class, confidence, box). Updates
+    `merge_report.json` with `pseudo_labels` (settings, totals, per source, per split) and
+    `pseudo_labels_added` per source. `boxes` still counts only original labels.
+  - Upload order: the backup and CSV are uploaded first, flushed and verified, so merged.zip
+    is never changed without a working backup. Then `publish_zip()` does the same as append
+    mode: space check +10%, delete merged.done, upload, flush, verify size and CRC, write
+    merged.done.
+  - Re-running skips if the report has `pseudo_labels`. `force` restores the originals from
+    `labels_original.zip`, then labels again. The new backup is the union of old and new,
+    so it can always undo every earlier run.
+  - The local `.prepared` marker is deleted before labels change, and rewritten with the
+    new merged.done after a verified upload. A crash mid-run makes `prepare_dataset()`
+    unpack fresh instead of reusing half-edited labels.
+  - Grid of 16 random changed images (original green, added yellow). `changes_from_csv()`
+    rebuilds it on a skipped run.
+- `scripts/merge_datasets.py`: `make_zip` no longer packs `.prepared` or Ultralytics
+  `*.cache` files. This matters for any zip built from a `prepare_dataset()` unpack.
+- `notebooks/09_pseudo_labels.ipynb`: T4 GPU. Settings (`CONF`, `IOU`, `COCO_SOURCES`,
+  `FORCE_PSEUDO`), then unpack, pseudo-label, the added-boxes table (also per split), the
+  grid, and a final `prepare_dataset()` that runs `check_det_dataset`.
+- Tests: 157 pass. New `tests/test_pseudo_label.py` (17), on a real merged.zip built from
+  the merge fixtures, with a fake model:
+  - overlap skip vs. another class, the 0.49/0.50 threshold, background and test-split
+    images
+  - originals kept byte for byte, backup = changed files only, CSV and report (Drive copy
+    and zip copy)
+  - merged.done deleted before the zip upload and written after; no `.prepared` in the zip
+  - `prepare_dataset` + `check_det_dataset` after the run
+  - COCO sources skipped
+  - re-run skip, force restore (no doubled boxes, backup still covers run 1), force without
+    a backup fails
+  - a lost backup upload leaves merged.zip and merged.done alone
+  - crash → fresh unpack
+  - grid, and the grid rebuilt from the CSV
+- Also ran notebook sections 2-6 locally on the fixture zip with the real yolo11n, with a
+  street photo in a src_b image. 7 people and cars were added after the original cone line.
+  The re-run skipped, and force gave the same 7 boxes. The grid was checked by eye.
+- Not tested or open:
+  - The real run in Colab on the 5.7 GB zip (time, Drive space, the added counts). yolo11x
+    on a T4 is roughly 25 ms per image at 640.
+  - Pseudo-labels are model guesses. False positives at 0.5 (the grid helps review them)
+    also enter val/test, so mAP measures agreement with yolo11x on those boxes.
+  - Notebook 08 should be re-run afterwards to compare mAP.
+  - An append (notebook 02) after this leaves new images un-labeled, and a re-mapped source
+    gets its raw labels back. The report still says "done", so re-run with
+    `FORCE_PSEUDO = True`.
+
 ## feat: zero-training open-vocab and hybrid detector backends (2026-11-16)
 
 - Why: detect sidewalk hazards (stairs, cones, poles, potholes, ...) before any
