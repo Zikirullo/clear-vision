@@ -5,6 +5,78 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: light fine-tune notebook for the free T4 (2026-11-16)
+
+- Why: notebook 08's zero-training hybrid misses key hazards. Its test mAP50: curb 0.001,
+  barrier 0.01, pothole 0.03, crosswalk 0.04, pole 0.08, manhole 0.08, bollard 0.18,
+  scooter 0.24, stairs 0.31; only traffic_cone (0.77) was good. This fine-tunes the
+  COCO-pretrained yolo11n (not from scratch), within the free Colab T4 budget.
+- `notebooks/05_train_yolo.ipynb` (T4):
+  - Presets:
+    - BUDGET (default): yolo11n, 512 px, 30 epochs, 30% subset, freeze=10, batch=-1,
+      patience 10.
+    - NORMAL: 640 px, 50 epochs, 50% subset, no freeze, patience 15.
+  - Data: `prepare_dataset()` then `apply_balanced()`. If the balanced list is stale or
+    missing, it stops with a message: re-run notebook 03 or set `USE_BALANCED = False`.
+    Training never reads from Drive.
+  - Subset (`train_subset.txt` + `data_subset.yaml` in the local dataset): every image
+    with a focus class is kept, with its balanced repeats. `SUBSET_FRACTION` of the rest is
+    kept, and person-only images are capped at `PERSON_CAP` (2000). It is seeded, so a
+    resume rebuilds the same list. Val and test are untouched.
+  - Train: `project=MyDrive/clear_vision/runs`, `save_period=5`.
+    - Augmentations: hsv, ±5° rotation, scale 0.5, mosaic with `close_mosaic=5`, flipud off.
+    - Checks for 0.5 GB of free Drive space first.
+    - Refuses to start over a run that already has weights. `exist_ok=True` stops
+      Ultralytics from renaming the run.
+    - `EpochTimer` prints the time of the first epoch and an estimate for the rest.
+  - Resume cell: `YOLO(last.pt).train(resume=True)`.
+  - Test split:
+    - Ultralytics `val(split="test")` gives recall and the confusion matrix.
+    - For the comparison table, the fine-tuned model is scored with notebook 08's own
+      evaluator (`compare_detectors.ap50_per_class`, conf 0.01). Both columns are then the
+      same metric.
+    - Table: class | zero-training hybrid | fine-tuned | better? | recall. Recall is
+      highlighted for curb, stairs, pothole, manhole and pole.
+    - `RECOMPUTE_ZERO_TRAINING = True` re-scores the hybrid on today's labels (the
+      notebook 08 JSON may predate the pseudo-labels).
+  - `per_class_choice.yaml`: `choice: {class: finetuned | openvocab}`, plus the scores and
+    `zero_training_model` (`coco` for the classes the hybrid takes from yolo11n).
+  - Missed critical objects: false negatives at conf 0.25 (count per class, grid of 12:
+    missed box red, predictions gray, "seen as X" when another class was predicted there).
+  - Export: `best.pt`, optional `best.onnx` and `metrics.json` to `exports/<RUN_NAME>/`.
+  - A Kaggle section. The setup cell detects `/kaggle` and skips the Drive mount.
+- `scripts/train_utils.py`: presets, augmentations, `build_subset`, `write_subset`,
+  `EpochTimer`, `predict_split`, `find_misses`, `miss_grid`, `comparison_rows`,
+  `per_class_choice`, `check_space`, `per_class_from_ultralytics`.
+- Tests: 189 pass. New `tests/test_train_utils.py` (16):
+  - presets
+  - subset: focus kept with repeats, fraction, person cap, determinism, and real
+    `check_det_dataset` on the written yaml
+  - timer (once, after resume), space check
+  - misses (low confidence, wrong class), grid
+  - comparison and choice (yes/no/same/n-a, COCO source), the notebook 08 JSON, the
+    Ultralytics metrics adapter
+- Smoke test on the Mac CPU with the fixture dataset and the notebook's exact train
+  arguments (6 epochs, 64 px, freeze=10, save_period=1):
+  - The training process was killed with `kill -9` after epoch 3. The resume cell's code
+    continued "from epoch 4 to 6" and finished.
+  - Then ran the notebook's own cells for sections 2 and 4-7 against that run: the
+    balanced-list refusal message, the "already has weights" guard, test val, the
+    confusion matrix file, the comparison table, `per_class_choice.yaml`, the misses, and
+    `best.pt`, `best.onnx` and `metrics.json` in exports.
+  - Scores were 0, as expected from 3 tiny images.
+- Not tested or open:
+  - The real T4 run, so the 1-2 h target is an estimate. The subset keeps every focus image
+    plus its balanced repeats, and most of the dataset comes from focus-class sources, so
+    the subset may be much more than 30% of train. If the estimate printed after epoch 1 is
+    too long, lower `EPOCHS` or `SUBSET_FRACTION`, or set `USE_BALANCED = False`.
+  - Run size on Drive: checkpoints were ~16 MB each in the smoke test, so 30 epochs gives
+    about 130 MB.
+  - Kaggle steps were written from knowledge of the platform, not run.
+  - The app doesn't read `per_class_choice.yaml` or `best.pt` yet.
+
+---
+
 ## feat: dataset report notebook with sanity checks and balanced train list (2026-11-16)
 
 - Why: see what's in the merged dataset, catch bad mappings and split leaks, and give
