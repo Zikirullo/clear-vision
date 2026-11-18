@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
+import sys
 import time
 import zipfile
+from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
@@ -23,6 +26,19 @@ LOCAL_DATASET = Path("/content/datasets/merged")
 SPLITS = ("train", "val", "test")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 PREPARED = ".prepared"  # holds merged.done's content; matching means already unpacked
+
+
+def is_kaggle(environ: Mapping[str, str] | None = None, modules: Mapping[str, object] | None = None) -> bool:
+    """True when running in a Kaggle notebook, False in Colab or locally.
+
+    Don't test Path("/kaggle"): Colab runtimes have that folder too. Kaggle sets
+    KAGGLE_KERNEL_RUN_TYPE; Colab is recognized by google.colab or COLAB_RELEASE_TAG.
+    `environ` and `modules` default to os.environ and sys.modules (tests pass their own).
+    """
+    environ = os.environ if environ is None else environ
+    modules = sys.modules if modules is None else modules
+    in_colab = "google.colab" in modules or "COLAB_RELEASE_TAG" in environ
+    return bool(environ.get("KAGGLE_KERNEL_RUN_TYPE")) and not in_colab
 
 
 def count_images(dataset: Path) -> dict[str, int]:

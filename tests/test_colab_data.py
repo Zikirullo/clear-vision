@@ -72,3 +72,27 @@ def test_prepare_detects_size_mismatch(drive_zip: Path, tmp_path: Path) -> None:
     done.write_text(json.dumps(info))
     with pytest.raises(RuntimeError, match="merged.done says"):
         prepare_dataset(drive_zip, tmp_path / "local", check=False)
+
+
+@pytest.mark.parametrize(("environ", "modules", "expected"), [
+    ({"KAGGLE_KERNEL_RUN_TYPE": "Interactive"}, {}, True),
+    ({"KAGGLE_KERNEL_RUN_TYPE": "Batch"}, {}, True),
+    ({}, {}, False),  # local Mac
+    ({"KAGGLE_KERNEL_RUN_TYPE": ""}, {}, False),
+    # Colab: has a /kaggle folder and may even carry Kaggle variables, but it is Colab.
+    ({"KAGGLE_KERNEL_RUN_TYPE": "Interactive", "COLAB_RELEASE_TAG": "release-colab_20261101"}, {}, False),
+    ({"KAGGLE_KERNEL_RUN_TYPE": "Interactive"}, {"google.colab": object()}, False),
+    ({"COLAB_RELEASE_TAG": "x"}, {}, False),
+])
+def test_is_kaggle(environ: dict, modules: dict, expected: bool) -> None:
+    from src.colab_data import is_kaggle
+
+    assert is_kaggle(environ, modules) is expected
+
+
+def test_is_kaggle_ignores_the_kaggle_folder(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from src.colab_data import is_kaggle
+
+    monkeypatch.delenv("KAGGLE_KERNEL_RUN_TYPE", raising=False)
+    monkeypatch.setattr(Path, "exists", lambda self: True)  # even if /kaggle exists
+    assert is_kaggle() is False

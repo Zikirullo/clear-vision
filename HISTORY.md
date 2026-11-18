@@ -5,6 +5,45 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## fix: notebook 05 Kaggle detection and standalone evaluation sections (2026-11-18)
+
+- Bug 1:
+  - Notebook 05 detected Kaggle with `Path("/kaggle").exists()`. Colab runtimes now have a
+    `/kaggle` folder too, so in Colab the notebook cloned the repo to
+    `/kaggle/working/clear-vision` and skipped `drive.mount`.
+  - `prepare_dataset` then reported `merged.done is missing` although the file is on Drive.
+- Fix:
+  - `src/colab_data.py` `is_kaggle()`: true only if `KAGGLE_KERNEL_RUN_TYPE` is set and
+    neither `google.colab` is loaded nor `COLAB_RELEASE_TAG` is set.
+  - The Setup cell has to choose the clone folder before the repo can be imported, so it
+    keeps a one-line copy of the same rule. After the import it asserts
+    `ON_KAGGLE == is_kaggle()`. No other notebook or script tested `/kaggle`; checked with
+    grep over src, scripts, notebooks and tests.
+- Setup fails early with clear messages:
+  - In Colab: "Google Drive is not connected: <DRIVE_ROOT> does not exist" when
+    `DRIVE_ROOT` is missing after `drive.mount`.
+  - On Kaggle: when the dataset input is missing. `DRIVE_ROOT` under `/kaggle/working` is
+    created.
+- Bug 2: with training already finished and sections 3/3b skipped, section 4 failed with
+  `NameError: YOLO`.
+  - All imports of sections 3-7 (YOLO, pandas, yaml, cv2, matplotlib, IPython Image, csv,
+    `compare_detectors`, `Detector`) are now in the Setup cell.
+  - Section 4 stops with a clear message if `best.pt` doesn't exist.
+  - A note above section 4: "Training already done? Skip sections 3 and 3b and run from
+    here." The header lists the same route.
+- Tests: 238 pass. `tests/test_colab_data.py` has 9 new `is_kaggle` cases: Kaggle
+  interactive/batch, local, an empty variable, Colab with Kaggle variables (by tag and by
+  module), and an existing `/kaggle` folder.
+- Ran the notebook's real cells locally (Colab parts stubbed: `google.colab.drive.mount`,
+  clone, `%pip`, GPU check) against the CPU smoke run from 2026-11-16.
+  - Settings → Setup → data → sections 4, 4b, 5, 6, 7 ran without the training or resume
+    cells and wrote `best.pt`, `best.onnx`, `metrics.json` and `per_class_choice.yaml`.
+  - A missing `DRIVE_ROOT` gives the new message; `KAGGLE_KERNEL_RUN_TYPE` takes the Kaggle
+    branch.
+- Not tested: in a real Colab or Kaggle runtime.
+
+---
+
 ## feat: speech noise filter and replay script (2026-11-18)
 
 - Why: in the first live test indoors, the app said "car ahead" and "pole, right, close"
