@@ -31,7 +31,7 @@ What was done before each commit, newest first. Add a new entry before every com
   - Section 4 stops with a clear message if `best.pt` doesn't exist.
   - A note above section 4: "Training already done? Skip sections 3 and 3b and run from
     here." The header lists the same route.
-- Tests: 238 pass. `tests/test_colab_data.py` has 9 new `is_kaggle` cases: Kaggle
+- Tests: 237 pass. `tests/test_colab_data.py` has 8 new `is_kaggle` cases: Kaggle
   interactive/batch, local, an empty variable, Colab with Kaggle variables (by tag and by
   module), and an existing `/kaggle` folder.
 - Ran the notebook's real cells locally (Colab parts stubbed: `google.colab.drive.mount`,
