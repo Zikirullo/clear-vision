@@ -49,8 +49,10 @@ camera.py → detector.py → tracker → navigator.py → speaker.py
 - `camera.py`: threaded capture that keeps only the latest frame and drops stale ones.
 - `detector.py`: model inference. Backends (`detector.backend` or `--backend`):
   `ultralytics` and `onnx` (COCO yolo11n), `openvocab` (YOLOE prompted from
-  `configs/prompts.yaml`, no training), `hybrid` (yolo11n every frame + YOLOE for the
-  non-COCO classes every 2nd frame). All return `Detection`s with `configs/classes.yaml` names.
+  `configs/prompts.yaml`, no training), `finetuned` (`models/budget_v1/best.pt`, notebook 05),
+  and `hybrid` (the default). Hybrid uses the fine-tuned model if it exists, either alone
+  (`finetuned.only`) or per class from `per_class_choice.yaml`; otherwise it uses yolo11n +
+  YOLOE. All return `Detection`s with `configs/classes.yaml` names.
 - tracker: keeps object IDs stable across frames.
 - `navigator.py`: works out direction, distance and a risk score for each object,
   then decides what to say.

@@ -1,0 +1,105 @@
+# Written by notebooks/05_train_yolo.ipynb: which model to trust per class in the app's hybrid mode.
+run: budget_v1
+metric: mAP50 on the test split (notebook 08 evaluator)
+choice:
+  person: finetuned
+  bicycle: finetuned
+  car: finetuned
+  motorcycle: finetuned
+  bus: finetuned
+  truck: finetuned
+  dog: openvocab
+  scooter: finetuned
+  pole: finetuned
+  bollard: finetuned
+  traffic_cone: finetuned
+  barrier: finetuned
+  curb: finetuned
+  stairs: finetuned
+  pothole: finetuned
+  manhole: finetuned
+  crosswalk: finetuned
+  traffic_light: finetuned
+  bench: openvocab
+  fire_hydrant: finetuned
+scores:
+  person:
+    finetuned: 0.5160094007802277
+    zero_training: 0.5044695324393623
+    zero_training_model: coco
+  bicycle:
+    finetuned: 0.5748073836243721
+    zero_training: 0.5248999955704451
+    zero_training_model: coco
+  car:
+    finetuned: 0.7624840169500164
+    zero_training: 0.7487396641974852
+    zero_training_model: coco
+  motorcycle:
+    finetuned: 0.7290505437292596
+    zero_training: 0.48460355755855616
+    zero_training_model: coco
+  bus:
+    finetuned: 0.5336463163172267
+    zero_training: 0.44682027366115945
+    zero_training_model: coco
+  truck:
+    finetuned: 0.44182970432734103
+    zero_training: 0.303128131506425
+    zero_training_model: coco
+  dog:
+    finetuned: 0.8304013882499443
+    zero_training: 0.832436910245761
+    zero_training_model: coco
+  scooter:
+    finetuned: 0.872476944939142
+    zero_training: 0.23532666778756636
+    zero_training_model: openvocab
+  pole:
+    finetuned: 0.6285121164463238
+    zero_training: 0.0753643677941683
+    zero_training_model: openvocab
+  bollard:
+    finetuned: 0.7680280286830198
+    zero_training: 0.17978643338552577
+    zero_training_model: openvocab
+  traffic_cone:
+    finetuned: 0.9790170367029686
+    zero_training: 0.7687871912513751
+    zero_training_model: openvocab
+  barrier:
+    finetuned: 0.6975121052247479
+    zero_training: 0.011546987826148382
+    zero_training_model: openvocab
+  curb:
+    finetuned: 0.5987159844255137
+    zero_training: 0.0009925518872255605
+    zero_training_model: openvocab
+  stairs:
+    finetuned: 0.6486862664004927
+    zero_training: 0.31457806017951523
+    zero_training_model: openvocab
+  pothole:
+    finetuned: 0.6384469037927671
+    zero_training: 0.0269832834310868
+    zero_training_model: openvocab
+  manhole:
+    finetuned: 0.5975371658029004
+    zero_training: 0.08182720954600935
+    zero_training_model: openvocab
+  crosswalk:
+    finetuned: 0.7990260970526004
+    zero_training: 0.04322381991616118
+    zero_training_model: openvocab
+  traffic_light:
+    finetuned: 0.4806547947436921
+    zero_training: 0.4449945988307857
+    zero_training_model: coco
+  bench:
+    finetuned: 0.39103554604505564
+    zero_training: 0.426291651936894
+    zero_training_model: coco
+  fire_hydrant:
+    finetuned: 0.7535824430854902
+    zero_training: 0.7095234433591124
+    zero_training_model: coco

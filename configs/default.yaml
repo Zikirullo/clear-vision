@@ -7,7 +7,9 @@ camera:
   stale_timeout: 2.0   # seconds without a new frame before camera is unhealthy
 
 detector:
-  backend: ultralytics            # ultralytics | onnx | openvocab | hybrid (or --backend)
+  backend: hybrid                 # ultralytics | onnx | openvocab | finetuned | hybrid (or --backend).
+                                  # hybrid = the fine-tuned model if finetuned.model_path exists,
+                                  # else the zero-training hybrid (yolo11n + YOLOE), logged as such
   device: auto                    # auto | cuda | mps | cpu (auto uses MPS only on macOS 15+)
   cpu_threads: 4                  # M1 has 4 performance cores; 4 beat 8 in benchmarks
   classes_file: configs/classes.yaml
@@ -15,7 +17,7 @@ detector:
   conf: 0.4                       # threshold for classes missing from class_conf
   # Per-class thresholds. Open-vocab scores run lower than closed-set ones, so rare
   # (non-COCO) classes start at 0.15; COCO classes at 0.35.
-  class_conf:
+  class_conf:                     # thresholds of the zero-training models (yolo11n, YOLOE)
     person: 0.35
     bicycle: 0.35
     car: 0.35
@@ -36,7 +38,23 @@ detector:
     pothole: 0.15
     manhole: 0.15
     crosswalk: 0.15
-  coco:                           # closed-set model (backends ultralytics, onnx, hybrid)
+  finetuned:                      # our fine-tuned model (notebook 05), all 20 classes
+    model_path: models/budget_v1/best.pt   # copied from Drive exports/budget_v1/; null = never use it
+    onnx_path: models/budget_v1/best.onnx
+    use_onnx: false               # ONNX was ~3x slower than PyTorch on the M1 CPU
+    imgsz: 512                    # budget_v1 was trained at 512 (M1 CPU: ~30 ms per 720p frame)
+    per_class_choice: models/budget_v1/per_class_choice.yaml
+    only: true                    # FINETUNED_ONLY: one model for every class (fastest; YOLOE never loads)
+    min_gain: 0.05                # MIN_GAIN, when only is false: a zero-training model takes a class
+                                  # only if it beat the fine-tuned mAP50 by at least this much
+    conf: 0.25                    # threshold for classes missing from class_conf below
+    class_conf:                   # critical hazards: a miss is worse than a false alarm. At 0.25
+      curb: 0.15                  # the test split missed 42% of curbs, 37% of poles, 36% of
+      stairs: 0.15                # potholes, 34% of stairs
+      pothole: 0.15
+      pole: 0.15
+      manhole: 0.15
+  coco:                           # closed-set model (backends ultralytics, onnx, zero-training hybrid)
     model_path: models/yolo11n.pt   # auto-downloaded on first use
     onnx_path: models/yolo11n.onnx  # exported from model_path on first use
     imgsz: 640                      # inference size in pixels

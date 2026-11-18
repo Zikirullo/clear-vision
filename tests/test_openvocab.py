@@ -348,6 +348,7 @@ def test_build_hybrid_splits_classes_between_models(tmp_path: Path, monkeypatch:
     cfg["openvocab"] = {**cfg["openvocab"], "cache_dir": str(tmp_path / "cache"),
                         "model_path": str(tmp_path / "yoloe-11s-seg.pt")}
     cfg["coco"] = {**cfg["coco"], "model_path": str(tmp_path / "yolo11n.pt")}
+    cfg["finetuned"] = {"model_path": None}  # the zero-training hybrid
 
     hybrid = build_detector(cfg, "hybrid")
     assert isinstance(hybrid, HybridDetector)

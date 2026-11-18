@@ -1,0 +1,379 @@
+{
+  "run": "budget_v1",
+  "preset": "BUDGET",
+  "commit": "e2f611a feat: light fine-tune notebook for the free T4",
+  "settings": {
+    "model": "yolo11n.pt",
+    "imgsz": 512,
+    "epochs": 30,
+    "epochs_run": 30,
+    "freeze": 10,
+    "batch": -1,
+    "patience": 10,
+    "subset_fraction": 0.3,
+    "person_cap": 2000,
+    "use_balanced": true,
+    "focus_classes": [
+      "curb",
+      "stairs",
+      "pothole",
+      "manhole",
+      "bollard",
+      "barrier",
+      "traffic_cone",
+      "pole",
+      "scooter",
+      "crosswalk"
+    ],
+    "augment": {
+      "hsv_h": 0.015,
+      "hsv_s": 0.6,
+      "hsv_v": 0.4,
+      "degrees": 5.0,
+      "translate": 0.1,
+      "scale": 0.5,
+      "fliplr": 0.5,
+      "flipud": 0.0,
+      "mosaic": 1.0,
+      "close_mosaic": 5,
+      "mixup": 0.0
+    },
+    "seed": 42
+  },
+  "data": {
+    "subset": {
+      "source_lines": 58608,
+      "source_images": 44405,
+      "focus_images": 23406,
+      "other_images": 20999,
+      "other_kept": 6300,
+      "person_only_dropped": 0,
+      "subset_images": 29706,
+      "subset_lines": 42453,
+      "fraction": 0.3
+    },
+    "merged_done": {
+      "created": "2026-11-17 02:09:18",
+      "zip_bytes": 5661252284,
+      "files": 128663,
+      "images": {
+        "train": 46489,
+        "val": 9412,
+        "test": 8429
+      },
+      "drive_free_bytes": 9738477568
+    }
+  },
+  "epoch_time": [],
+  "test": {
+    "map50": 0.682996675000769,
+    "map50_95": 0.45232830309492,
+    "precision": 0.7151203149858796,
+    "recall": 0.6371117262578629,
+    "per_class": {
+      "person": {
+        "precision": 0.7198723910611639,
+        "recall": 0.42996348838200465,
+        "map50": 0.5195724750520259,
+        "map50_95": 0.30356534299450566
+      },
+      "bicycle": {
+        "precision": 0.710067878541205,
+        "recall": 0.5037688442211056,
+        "map50": 0.594704477964036,
+        "map50_95": 0.3626391080108289
+      },
+      "car": {
+        "precision": 0.7419286908398511,
+        "recall": 0.7192940127057903,
+        "map50": 0.7654203284064787,
+        "map50_95": 0.5417546394718696
+      },
+      "motorcycle": {
+        "precision": 0.7736435109428428,
+        "recall": 0.6469465648854962,
+        "map50": 0.7363621126015792,
+        "map50_95": 0.45108665389748903
+      },
+      "bus": {
+        "precision": 0.5828048408380972,
+        "recall": 0.5631067961165048,
+        "map50": 0.5490448867996403,
+        "map50_95": 0.41087296193117895
+      },
+      "truck": {
+        "precision": 0.5382107136168481,
+        "recall": 0.42661448140900193,
+        "map50": 0.47562739560841405,
+        "map50_95": 0.3387101060842103
+      },
+      "dog": {
+        "precision": 0.8260436145988289,
+        "recall": 0.7765726681127982,
+        "map50": 0.8402133265184397,
+        "map50_95": 0.6358858981590217
+      },
+      "scooter": {
+        "precision": 0.8222942670713423,
+        "recall": 0.8614629544314089,
+        "map50": 0.9044046122196567,
+        "map50_95": 0.6337072988887266
+      },
+      "pole": {
+        "precision": 0.7681960034294903,
+        "recall": 0.6738836265223275,
+        "map50": 0.7257346901236904,
+        "map50_95": 0.3921866312422514
+      },
+      "bollard": {
+        "precision": 0.7164310143628777,
+        "recall": 0.8054298642533937,
+        "map50": 0.8048048725365705,
+        "map50_95": 0.46625352843936907
+      },
+      "traffic_cone": {
+        "precision": 0.9404173990032467,
+        "recall": 0.9936170212765958,
+        "map50": 0.9931113455537409,
+        "map50_95": 0.7949172473341279
+      },
+      "barrier": {
+        "precision": 0.6591480745302111,
+        "recall": 0.6606324200900016,
+        "map50": 0.7103697947628025,
+        "map50_95": 0.44858790071493254
+      },
+      "curb": {
+        "precision": 0.7269174149638197,
+        "recall": 0.5856573705179283,
+        "map50": 0.6433444396367262,
+        "map50_95": 0.44034066124837346
+      },
+      "stairs": {
+        "precision": 0.7462479003283288,
+        "recall": 0.6396648044692738,
+        "map50": 0.6789172320161898,
+        "map50_95": 0.37147711990166254
+      },
+      "pothole": {
+        "precision": 0.6372464430005068,
+        "recall": 0.6043737574552683,
+        "map50": 0.6568499074054779,
+        "map50_95": 0.36674554906774154
+      },
+      "manhole": {
+        "precision": 0.4332915811293026,
+        "recall": 0.686046511627907,
+        "map50": 0.6115029424214377,
+        "map50_95": 0.430585163354544
+      },
+      "crosswalk": {
+        "precision": 0.8733935976485073,
+        "recall": 0.7455683003128258,
+        "map50": 0.8242532367647365,
+        "map50_95": 0.5612349828978551
+      },
+      "traffic_light": {
+        "precision": 0.7306063299277774,
+        "recall": 0.40774299835255357,
+        "map50": 0.47341573798748116,
+        "map50_95": 0.26997705110720155
+      },
+      "bench": {
+        "precision": 0.6681472927162834,
+        "recall": 0.328719723183391,
+        "map50": 0.4118668626142713,
+        "map50_95": 0.23277957115882444
+      },
+      "fire_hydrant": {
+        "precision": 0.687497341167063,
+        "recall": 0.6831683168316832,
+        "map50": 0.7404128230219854,
+        "map50_95": 0.5932586459936865
+      }
+    }
+  },
+  "comparison": {
+    "metric": "mAP50, notebook 08 evaluator",
+    "zero_training_source": "recomputed",
+    "rows": [
+      {
+        "class": "person",
+        "zero-training hybrid": 0.5044695324393623,
+        "fine-tuned": 0.5160094007802277,
+        "better?": "yes",
+        "recall": 0.42996348838200465,
+        "critical": false
+      },
+      {
+        "class": "bicycle",
+        "zero-training hybrid": 0.5248999955704451,
+        "fine-tuned": 0.5748073836243721,
+        "better?": "yes",
+        "recall": 0.5037688442211056,
+        "critical": false
+      },
+      {
+        "class": "car",
+        "zero-training hybrid": 0.7487396641974852,
+        "fine-tuned": 0.7624840169500164,
+        "better?": "yes",
+        "recall": 0.7192940127057903,
+        "critical": false
+      },
+      {
+        "class": "motorcycle",
+        "zero-training hybrid": 0.48460355755855616,
+        "fine-tuned": 0.7290505437292596,
+        "better?": "yes",
+        "recall": 0.6469465648854962,
+        "critical": false
+      },
+      {
+        "class": "bus",
+        "zero-training hybrid": 0.44682027366115945,
+        "fine-tuned": 0.5336463163172267,
+        "better?": "yes",
+        "recall": 0.5631067961165048,
+        "critical": false
+      },
+      {
+        "class": "truck",
+        "zero-training hybrid": 0.303128131506425,
+        "fine-tuned": 0.44182970432734103,
+        "better?": "yes",
+        "recall": 0.42661448140900193,
+        "critical": false
+      },
+      {
+        "class": "dog",
+        "zero-training hybrid": 0.832436910245761,
+        "fine-tuned": 0.8304013882499443,
+        "better?": "no",
+        "recall": 0.7765726681127982,
+        "critical": false
+      },
+      {
+        "class": "scooter",
+        "zero-training hybrid": 0.23532666778756636,
+        "fine-tuned": 0.872476944939142,
+        "better?": "yes",
+        "recall": 0.8614629544314089,
+        "critical": false
+      },
+      {
+        "class": "pole",
+        "zero-training hybrid": 0.0753643677941683,
+        "fine-tuned": 0.6285121164463238,
+        "better?": "yes",
+        "recall": 0.6738836265223275,
+        "critical": true
+      },
+      {
+        "class": "bollard",
+        "zero-training hybrid": 0.17978643338552577,
+        "fine-tuned": 0.7680280286830198,
+        "better?": "yes",
+        "recall": 0.8054298642533937,
+        "critical": false
+      },
+      {
+        "class": "traffic_cone",
+        "zero-training hybrid": 0.7687871912513751,
+        "fine-tuned": 0.9790170367029686,
+        "better?": "yes",
+        "recall": 0.9936170212765958,
+        "critical": false
+      },
+      {
+        "class": "barrier",
+        "zero-training hybrid": 0.011546987826148382,
+        "fine-tuned": 0.6975121052247479,
+        "better?": "yes",
+        "recall": 0.6606324200900016,
+        "critical": false
+      },
+      {
+        "class": "curb",
+        "zero-training hybrid": 0.0009925518872255605,
+        "fine-tuned": 0.5987159844255137,
+        "better?": "yes",
+        "recall": 0.5856573705179283,
+        "critical": true
+      },
+      {
+        "class": "stairs",
+        "zero-training hybrid": 0.31457806017951523,
+        "fine-tuned": 0.6486862664004927,
+        "better?": "yes",
+        "recall": 0.6396648044692738,
+        "critical": true
+      },
+      {
+        "class": "pothole",
+        "zero-training hybrid": 0.0269832834310868,
+        "fine-tuned": 0.6384469037927671,
+        "better?": "yes",
+        "recall": 0.6043737574552683,
+        "critical": true
+      },
+      {
+        "class": "manhole",
+        "zero-training hybrid": 0.08182720954600935,
+        "fine-tuned": 0.5975371658029004,
+        "better?": "yes",
+        "recall": 0.686046511627907,
+        "critical": true
+      },
+      {
+        "class": "crosswalk",
+        "zero-training hybrid": 0.04322381991616118,
+        "fine-tuned": 0.7990260970526004,
+        "better?": "yes",
+        "recall": 0.7455683003128258,
+        "critical": false
+      },
+      {
+        "class": "traffic_light",
+        "zero-training hybrid": 0.4449945988307857,
+        "fine-tuned": 0.4806547947436921,
+        "better?": "yes",
+        "recall": 0.40774299835255357,
+        "critical": false
+      },
+      {
+        "class": "bench",
+        "zero-training hybrid": 0.426291651936894,
+        "fine-tuned": 0.39103554604505564,
+        "better?": "no",
+        "recall": 0.328719723183391,
+        "critical": false
+      },
+      {
+        "class": "fire_hydrant",
+        "zero-training hybrid": 0.7095234433591124,
+        "fine-tuned": 0.7535824430854902,
+        "better?": "yes",
+        "recall": 0.6831683168316832,
+        "critical": false
+      }
+    ]
+  },
+  "missed_critical": {
+    "conf": 0.25,
+    "missed": {
+      "pole": 275,
+      "pothole": 179,
+      "stairs": 604,
+      "manhole": 20,
+      "curb": 107
+    },
+    "total": {
+      "curb": 252,
+      "stairs": 1790,
+      "pothole": 503,
+      "manhole": 86,
+      "pole": 739
+    }
+  }
+}

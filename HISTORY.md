@@ -5,6 +5,69 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: fine-tuned detector in the live app (2026-11-18)
+
+- Why: budget_v1 (notebook 05) beat the zero-training hybrid on 18 of 20 classes on the
+  test split. Only dog (0.830 vs 0.832) and bench (0.391 vs 0.426) were slightly better
+  with yolo11n.
+- `src/detector.py`:
+  - New `finetuned` backend: `models/budget_v1/best.pt` via Ultralytics at imgsz 512
+    (configurable). Class names come from `configs/classes.yaml` by ID; a different class
+    count is an error, different names a warning. ONNX stays optional (`use_onnx`).
+  - `hybrid` (now the default backend):
+    - With `best.pt` and `finetuned.only: true` (FINETUNED_ONLY, the default): the
+      fine-tuned model alone. yolo11n and YOLOE are never loaded.
+    - With `only: false`: `resolve_choice()` reads `per_class_choice.yaml`. A
+      zero-training model (`zero_training_model`: coco = yolo11n, openvocab = YOLOE) gets a
+      class only if it won by at least `min_gain` (MIN_GAIN, 0.05). yolo11n and YOLOE load
+      only if a class still needs them, and results are merged with NMS as before.
+    - Without `best.pt`: the zero-training hybrid, with a log warning.
+  - `HybridDetector` takes several every-frame models, and the open-vocab model is
+    optional.
+  - Fine-tuned thresholds: 0.15 for curb, stairs, pothole, pole and manhole (a miss is
+    worse than a false alarm; at 0.25 the test split missed 42%, 34%, 36%, 37% and 23% of
+    them), 0.25 for the rest.
+- `configs/default.yaml`: `backend: hybrid` and a new `finetuned:` section.
+- `.gitignore`: `models/**/*.pt` and `models/**/*.onnx`. `per_class_choice.yaml` and
+  `metrics.json` of budget_v1 are committed.
+- MPS: still crashes on this Mac (macOS 14.5, an uncaught NSException aborts Python; tried
+  in a separate process). `device: auto` keeps using the CPU and switches to MPS by itself
+  on macOS 15+. The CPU is fast enough: best.pt takes 30 ms at 512 (44 ms at 640).
+- With MIN_GAIN 0.05 no class leaves the fine-tuned model: bench wins by 0.035 and dog by
+  0.002, both under 0.05. Bench goes to yolo11n only at `min_gain` <= 0.035.
+- Live, on the same 720p hazard video as on 2026-11-16, with the debug window, default
+  backend:
+  - 20.9-21.8 FPS, inference 30-32 ms, frame-to-decision 46-48 ms on average (max 91 ms).
+  - The zero-training hybrid did 11.0-11.6 FPS and 86-91 ms.
+- Real-world check on the 24 Wikimedia photos (out of distribution):
+  - Better than zero-training on manholes (4/4 vs 1), stairs (3/3 vs 2) and potholes (3/4
+    vs 1).
+  - Worse on traffic cones (0/4 vs 2; two are called fire_hydrant at 0.81 and 0.71, as
+    yolo11n's COCO head did), bollards (1/4 vs 3; one fire_hydrant at 0.91) and poles
+    (1/4 vs 3).
+  - The 0.98 cone mAP50 on the test split doesn't carry over to these photos. The test
+    split comes from the same Roboflow sources as the training data. The objects are still
+    announced, but under the wrong name.
+- Tests: 203 pass. New `tests/test_finetuned.py` (14, fake models):
+  - `resolve_choice` with budget_v1's real scores at min_gain 0.05 / 0.03 / 0 and YOLOE
+    routing
+  - fine-tuned names, imgsz and thresholds; a wrong class count; a missing file
+  - hybrid: only=true, only=false with 0.05 (still one model), lost classes to yolo11n
+    only, YOLOE loaded only for a class it won, fallback without best.pt and its log
+  - several fast models
+  - `test_openvocab.py`'s zero-training hybrid test now sets `finetuned.model_path: null`.
+- Not tested or open:
+  - The live webcam.
+  - The real per-class hybrid with yolo11n/YOLOE (only with fakes; with today's scores it
+    never triggers).
+  - The cone/bollard/pole regression on real street photos needs more varied training data
+    or a per-class override.
+  - The rest of Part A's spec was cut off in the request after the thresholds bullet.
+  - chair, potted_plant and stop_sign, which only yolo11n knew, are no longer detected with
+    the fine-tuned model.
+
+---
+
 ## feat: light fine-tune notebook for the free T4 (2026-11-16)
 
 - Why: notebook 08's zero-training hybrid misses key hazards. Its test mAP50: curb 0.001,

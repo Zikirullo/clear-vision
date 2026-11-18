@@ -54,7 +54,8 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".m4v", ".webm"}
 
 # Names in the printed tables (and their order).
-LABELS = {"ultralytics": "COCO-only", "onnx": "COCO-only (onnx)", "openvocab": "openvocab", "hybrid": "hybrid"}
+LABELS = {"ultralytics": "COCO-only", "onnx": "COCO-only (onnx)", "openvocab": "openvocab",
+          "finetuned": "fine-tuned", "hybrid": "hybrid"}
 RARE_CLASSES = ("curb", "stairs", "pothole", "manhole", "bollard", "barrier",
                 "traffic_cone", "pole", "scooter", "crosswalk")
 
@@ -335,7 +336,8 @@ def _table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
 def outputs_of(detector: DetectorBackend) -> set[str]:
     """Class names a backend can output."""
     if isinstance(detector, HybridDetector):
-        return outputs_of(detector.fast) | outputs_of(detector.slow)
+        members = [*detector.fast_members, *([detector.slow] if detector.slow is not None else [])]
+        return set().union(*(outputs_of(m) for m in members))
     if hasattr(detector, "index_to_class"):
         return set(detector.index_to_class)
     allowed = getattr(detector, "allowed_names", None)

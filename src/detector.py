@@ -14,7 +14,12 @@ Backends (`detector.backend` in configs/default.yaml, or `--backend`):
                the first start; the prompted model is cached in
                `models/openvocab/` (.pt, or .onnx) and later starts load it
                without the text encoder.
-- hybrid:      the fast COCO model every frame for COCO classes, plus the
+- finetuned:   our fine-tuned YOLO (models/budget_v1/best.pt, notebook 05),
+               trained on all 20 classes of configs/classes.yaml.
+- hybrid:      if the fine-tuned model exists: one model per class, chosen
+               from its per_class_choice.yaml (by default the fine-tuned model
+               alone, see `finetuned.only`). Otherwise the zero-training hybrid:
+               the fast COCO model every frame for COCO classes, plus the
                open-vocab model every Nth frame for the rest, merged with NMS.
 """
 
@@ -44,6 +49,7 @@ __all__ = [
     "DetectorBackend",
     "HybridDetector",
     "OpenVocabDetector",
+    "resolve_choice",
     "build_detector",
     "canonical_name",
     "merge_detections",
@@ -53,11 +59,13 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
-BACKENDS = ("ultralytics", "onnx", "openvocab", "hybrid")
+BACKENDS = ("ultralytics", "onnx", "openvocab", "finetuned", "hybrid")
 
 DEFAULT_MODEL_PATH = "models/yolo11n.pt"
 DEFAULT_OPENVOCAB_MODEL = "models/yoloe-11s-seg.pt"
 DEFAULT_OPENVOCAB_FALLBACK = "models/yolov8s-worldv2.pt"
+DEFAULT_FINETUNED_MODEL = "models/budget_v1/best.pt"
+DEFAULT_FINETUNED_IMGSZ = 512  # the size budget_v1 was trained at
 DEFAULT_CONF = 0.4
 DEFAULT_IMGSZ = 640
 
@@ -225,6 +233,8 @@ class Detector:
         cpu_threads: Torch CPU threads; None keeps the torch default.
         class_conf: Per-class confidence thresholds.
         warm_up: Run two dummy frames at startup.
+        class_names: Our names for the model's class IDs, in ID order (the
+            fine-tuned model: configs/classes.yaml). None keeps the model's names.
     """
 
     def __init__(
@@ -237,6 +247,7 @@ class Detector:
         cpu_threads: int | None = None,
         class_conf: Mapping[str, float] | None = None,
         warm_up: bool = True,
+        class_names: Sequence[str] | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         self.conf = conf
@@ -250,6 +261,13 @@ class Detector:
         self.model_path.parent.mkdir(parents=True, exist_ok=True)
         self.model = YOLO(str(self.model_path))
         self.names: dict[int, str] = {i: canonical_name(n) for i, n in dict(self.model.names).items()}
+        if class_names is not None:
+            ours = [canonical_name(n) for n in class_names]
+            if len(ours) != len(self.names):
+                raise RuntimeError(f"{self.model_path} has {len(self.names)} classes, but the class list has {len(ours)}")
+            if ours != [self.names[i] for i in range(len(ours))]:
+                logger.warning("%s class names differ from the class list; using the class list by ID", self.model_path)
+            self.names = dict(enumerate(ours))
         self.class_ids = self._resolve_class_ids(allowed_classes)
         self.allowed_names = (
             None if self.class_ids is None else {self.names[i] for i in self.class_ids}
@@ -535,17 +553,18 @@ class OpenVocabDetector:
 # ---------------------------------------------------------------------- hybrid
 
 class HybridDetector:
-    """Fast COCO model every frame + open-vocab model every `openvocab_every` frames.
+    """Fast model(s) every frame + an optional open-vocab model every `openvocab_every` frames.
 
-    Between open-vocab runs the last open-vocab detections are reused (one or
-    a few frames old), so a stairs warning doesn't flicker on and off: when
-    unsure, warn.
+    `fast` is one backend or several (e.g. the fine-tuned model and yolo11n for
+    the classes it lost); each covers its own classes. Between open-vocab runs
+    the last open-vocab detections are reused (one or a few frames old), so a
+    stairs warning doesn't flicker on and off: when unsure, warn.
     """
 
     def __init__(
         self,
-        fast: DetectorBackend,
-        slow: DetectorBackend,
+        fast: DetectorBackend | Sequence[DetectorBackend],
+        slow: DetectorBackend | None = None,
         openvocab_every: int = 2,
         nms_iou: float = 0.5,
         agnostic_iou: float | None = 0.7,
@@ -554,14 +573,17 @@ class HybridDetector:
     ) -> None:
         if openvocab_every < 1:
             raise ValueError("openvocab_every must be >= 1")
-        self.fast = fast
+        self.fast_members: list[DetectorBackend] = list(fast) if isinstance(fast, Sequence) else [fast]
+        if not self.fast_members:
+            raise ValueError("HybridDetector needs at least one fast backend")
+        self.fast = self.fast_members[0]
         self.slow = slow
         self.openvocab_every = openvocab_every
         self.nms_iou = nms_iou
         self.agnostic_iou = agnostic_iou
         self.class_conf = {canonical_name(k): float(v) for k, v in (class_conf or {}).items()}
         self.conf = conf
-        self.device = fast.device
+        self.device = self.fast.device
         self.last_inference_ms: float = 0.0
         self.openvocab_ran = False
         self._frame = 0
@@ -573,10 +595,14 @@ class HybridDetector:
         self._last_slow = []
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        fast = self.fast.detect(frame)
-        total = self.fast.last_inference_ms
-        self.openvocab_ran = self._frame % self.openvocab_every == 0
+        fast: list[Detection] = []
+        total = 0.0
+        for member in self.fast_members:
+            fast += member.detect(frame)
+            total += member.last_inference_ms
+        self.openvocab_ran = self.slow is not None and self._frame % self.openvocab_every == 0
         if self.openvocab_ran:
+            assert self.slow is not None
             self._last_slow = self.slow.detect(frame)
             total += self.slow.last_inference_ms
         self._frame += 1
@@ -584,6 +610,31 @@ class HybridDetector:
         merged = merge_detections([fast, self._last_slow], self.nms_iou, self.agnostic_iou, self.class_conf, self.conf)
         self.last_inference_ms = total + (time.perf_counter() - start) * 1000
         return merged
+
+
+# ---------------------------------------------------------------------- per-class choice
+
+def resolve_choice(
+    choice_doc: Mapping[str, Any], classes: Sequence[str], min_gain: float = 0.05,
+) -> dict[str, str]:
+    """Class -> "finetuned", "coco" or "openvocab" from notebook 05's per_class_choice.yaml.
+
+    A zero-training model (its `zero_training_model`: coco = yolo11n, openvocab =
+    YOLOE) gets a class only if it beat the fine-tuned model by at least `min_gain`
+    mAP50. Everything else, including classes without scores, uses the fine-tuned
+    model: one model fewer to run is worth more than a tiny gain.
+    """
+    scores = choice_doc.get("scores") or {}
+    out: dict[str, str] = {}
+    for cls in classes:
+        entry = scores.get(cls) or {}
+        fine, zero = entry.get("finetuned"), entry.get("zero_training")
+        model = entry.get("zero_training_model", "openvocab")
+        if model not in ("coco", "openvocab"):
+            raise ValueError(f"per_class_choice.yaml: unknown zero_training_model {model!r} for {cls}")
+        wins = zero is not None and fine is not None and zero - fine >= min_gain
+        out[cls] = model if wins else "finetuned"
+    return out
 
 
 # ---------------------------------------------------------------------- factory
@@ -611,6 +662,9 @@ def build_detector(
     class_conf = cfg.get("class_conf") or {}
     coco_cfg = cfg.get("coco", {})
     ov_cfg = cfg.get("openvocab", {})
+    ft_cfg = cfg.get("finetuned", {}) or {}
+    ft_conf = ft_cfg.get("conf", DEFAULT_CONF)
+    ft_class_conf = ft_cfg.get("class_conf") or {}
 
     def coco(allowed: Iterable[str] | None, onnx: bool) -> Detector:
         pt = resolve_path(coco_cfg.get("model_path", DEFAULT_MODEL_PATH), root)
@@ -619,6 +673,20 @@ def build_detector(
         if onnx:
             path = ensure_onnx(pt, resolve_path(coco_cfg.get("onnx_path", pt.with_suffix(".onnx")), root), imgsz)
         return Detector(path, conf, allowed, imgsz, device, threads, class_conf)
+
+    def finetuned_path() -> Path | None:
+        path = ft_cfg.get("model_path")
+        return resolve_path(path, root) if path else None
+
+    def finetuned(allowed: Iterable[str] | None = None) -> Detector:
+        pt = finetuned_path()
+        if pt is None or not pt.exists():
+            raise FileNotFoundError(f"Fine-tuned model {pt} not found (copy it from Drive exports/, see notebook 05)")
+        imgsz = ft_cfg.get("imgsz", DEFAULT_FINETUNED_IMGSZ)
+        path = pt
+        if ft_cfg.get("use_onnx", False):
+            path = ensure_onnx(pt, resolve_path(ft_cfg.get("onnx_path", pt.with_suffix(".onnx")), root), imgsz)
+        return Detector(path, ft_conf, allowed, imgsz, device, threads, ft_class_conf, class_names=classes)
 
     def openvocab(classes: Sequence[str]) -> OpenVocabDetector:
         fallback = ov_cfg.get("fallback_model_path", DEFAULT_OPENVOCAB_FALLBACK)
@@ -643,19 +711,47 @@ def build_detector(
         return coco(allowed, onnx=backend == "onnx")
     if backend == "openvocab":
         return openvocab(classes)
+    if backend == "finetuned":
+        return finetuned()
 
     hybrid_cfg = cfg.get("hybrid", {})
+    hybrid_args = dict(
+        openvocab_every=hybrid_cfg.get("openvocab_every", 2),
+        nms_iou=hybrid_cfg.get("nms_iou", 0.5),
+        agnostic_iou=hybrid_cfg.get("agnostic_iou", 0.7),
+    )
+    ft_path = finetuned_path()
+    if ft_path is not None and ft_path.exists():
+        if ft_cfg.get("only", True):
+            logger.info("Hybrid: fine-tuned model %s for all classes (finetuned.only: true)", ft_path)
+            return finetuned()
+        choice_file = resolve_path(ft_cfg.get("per_class_choice", ft_path.with_name("per_class_choice.yaml")), root)
+        if not choice_file.exists():
+            logger.warning("%s not found: using the fine-tuned model for every class", choice_file)
+            return finetuned()
+        route = resolve_choice(yaml.safe_load(choice_file.read_text()), classes, ft_cfg.get("min_gain", 0.05))
+        groups = {m: [c for c in classes if route[c] == m] for m in ("finetuned", "coco", "openvocab")}
+        logger.info("Hybrid from %s (min_gain %.2f): fine-tuned for %d classes; yolo11n for %s; YOLOE for %s",
+                    choice_file.name, ft_cfg.get("min_gain", 0.05), len(groups["finetuned"]),
+                    ", ".join(groups["coco"]) or "none", ", ".join(groups["openvocab"]) or "none")
+        if not groups["coco"] and not groups["openvocab"]:
+            return finetuned()
+        members: list[DetectorBackend] = [finetuned(groups["finetuned"])] if groups["finetuned"] else []
+        if groups["coco"]:
+            members.append(coco(groups["coco"], onnx=hybrid_cfg.get("coco_onnx", False)))
+        slow = openvocab(groups["openvocab"]) if groups["openvocab"] else None
+        thresholds = {c: ft_class_conf.get(c, ft_conf) if route[c] == "finetuned" else class_conf.get(c, conf)
+                      for c in classes}
+        if not members:  # every class went to YOLOE: run it every frame
+            assert slow is not None
+            members, slow = [slow], None
+        return HybridDetector(members, slow, class_conf=thresholds, conf=conf, **hybrid_args)
+
+    if ft_path is not None:
+        logger.warning("Fine-tuned model %s not found: using the zero-training hybrid (yolo11n + YOLOE)", ft_path)
     fast = coco(allowed, onnx=hybrid_cfg.get("coco_onnx", False))
     known = set(fast.names.values())
     coco_part = sorted(fast.allowed_names or known)
     rare = [c for c in classes if c not in known]
     logger.info("Hybrid: COCO model for %s; open-vocab for %s", ", ".join(coco_part), ", ".join(rare))
-    return HybridDetector(
-        fast,
-        openvocab(rare),
-        openvocab_every=hybrid_cfg.get("openvocab_every", 2),
-        nms_iou=hybrid_cfg.get("nms_iou", 0.5),
-        agnostic_iou=hybrid_cfg.get("agnostic_iou", 0.7),
-        class_conf=class_conf,
-        conf=conf,
-    )
+    return HybridDetector(fast, openvocab(rare), class_conf=class_conf, conf=conf, **hybrid_args)
