@@ -5,6 +5,76 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: mobile export notebook (TFLite, Core ML, Flutter plugin files) (2026-11-18)
+
+- Why: run the fine-tuned detector on phones, and give the Flutter app
+  (`ultralytics_yolo`) the files it expects.
+- `notebooks/07_export_mobile.ipynb` (T4):
+  - `RUN_NAME` is the only setting a later model needs. imgsz comes from the run's
+    `metrics.json` (budget_v1: 512).
+  - The data comes from `prepare_dataset()`; images are never read from Drive.
+  - Setup has all imports, the `is_kaggle()` rule and the "Google Drive is not connected"
+    check. The model's class names must match `merge_report.json`.
+  - Exports, each as its own process:
+    - TFLite INT8: `format="litert"`, `quantize=8`, calibrated on 200 random train images.
+    - TFLite FP16: `format="saved_model"` → `*_float16.tflite`.
+    - Core ML FP16: `nms=True`, `quantize=16`, `conf=0.15`.
+    - Flutter Android: `format="litert"`, `nms=None`, FP32 → `clear_vision_<RUN>.tflite`.
+    - Flutter iOS: `clear_vision_<RUN>.mlpackage` plus `.mlpackage.zip`.
+  - Checks the embedded metadata (task, 20 class names in order, imgsz) that the plugin
+    reads.
+  - Validates every model on the test split with notebook 08's evaluator: mAP50, recall of
+    curb/stairs/pothole/pole/manhole at their own thresholds, size vs the `.pt`, and
+    PASS/FAIL for FP16 at < 3% mAP50 loss.
+  - Saves everything to `exports/<RUN>/mobile/` with `labels.txt`, `thresholds.json` (0.25
+    default, 0.15 critical) and `mobile_metrics.json`.
+- Findings that shaped it (Ultralytics 8.4.207):
+  - There is no `tflite` format; TFLite is `format="litert"` and precision is `quantize`.
+    LiteRT has no FP16 (only 8, w8a16, w8a32), so the FP16 file comes from the TensorFlow
+    route.
+  - That FP16 file is NHWC with pixel box coordinates, but Ultralytics' own LiteRT reader
+    assumes normalized coordinates. `val()` scored it 0.000 while its raw scores matched
+    FP32 (0.545 vs 0.547). `scripts/mobile_export.py` `TFLiteDetector` reads every
+    `.tflite`, checking NHWC/NCHW, pixel/normalized and float/int8 input instead of
+    assuming them.
+  - Core ML's embedded NMS defaults to confidence 0.25, which would drop curb, stairs,
+    pothole, pole and manhole boxes between 0.15 and 0.25 on iPhone. It is exported with
+    `conf` = the lowest per-class threshold (0.15), still adjustable at run time.
+  - Exports install packages mid-run; in one process torch went 2.15 → 2.14.1 and numpy
+    2.4.6 → 2.1.3 while loaded, and all four exports failed. Each export and each
+    validation now runs as its own process (`python scripts/mobile_export.py
+    export|evaluate`).
+  - Flutter plugin docs (`yolo-flutter-app` `doc/models.md`, package 0.7.2): Android
+    `litert` with `nms=None` (NMS in the plugin), FP32 or W8A32; iOS `.mlpackage`, or
+    `.mlpackage.zip` in `assets/models/`. Task and labels come from the embedded metadata.
+    The custom Core ML export arguments are not documented there.
+- Rehearsed on this Mac:
+  - The notebook's real cells, sections 1-6, ran on the real `budget_v1/best.pt`, in a
+    separate throwaway venv (Ultralytics 8.4.207 plus the export packages it installs).
+  - The test set was a mini `merged.zip` of the 24 Wikimedia street photos, labelled with
+    the `.pt`'s own detections at conf >= 0.5 (30 boxes).
+  - mAP50 vs the `.pt` (1.000): INT8 0.986 (-1.4%), FP16 1.000 (0%), Core ML FP16 0.998
+    (-0.23%), Flutter LiteRT FP32 1.000. Recall 1.0 for every critical class present.
+  - Sizes: INT8 3.1 MB, FP16 5.3 MB, Core ML 5.4 MB (zip 4.9 MB), Flutter FP32 10.7 MB,
+    `.pt` 5.5 MB.
+  - Metadata OK in all four.
+- Tests: 250 pass. New `tests/test_mobile_export.py` (13):
+  - imgsz from `metrics.json` (budget_v1 = 512), the calibration yaml (200 of 250, val =
+    train list), thresholds from the config, side files, the zipped `.mlpackage` layout
+  - TFLite metadata in the appended zip, both name flavours, result rows and sizes,
+    replacing copies
+  - command-line option parsing, Core ML skipped outside macOS
+  - the decoder with pixel/normalized and either orientation plus NMS, letterbox, recall at
+    per-class thresholds
+- Not tested or open:
+  - The real Colab run on the full test split (the acceptance numbers).
+  - Core ML is scored only on macOS; in Colab it is exported and its metadata checked.
+  - Loading the files in the Flutter plugin on a phone.
+  - The plugin applies one global threshold, so the app has to apply `thresholds.json`
+    itself.
+
+---
+
 ## fix: notebook 05 Kaggle detection and standalone evaluation sections (2026-11-18)
 
 - Bug 1:
