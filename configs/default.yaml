@@ -128,7 +128,35 @@ navigator:
   default_severity: 1        # classes missing from the severity table
   risk_threshold: 1.0        # objects below this risk are not announced
   cooldown: 4.0              # seconds before repeating the same class + direction
-  urgent_cooldown: 1.5       # shorter repeat time for urgent (ahead + near) warnings
+  urgent_cooldown: 2.0       # shorter repeat time for urgent (ahead + near) warnings
+  # Speech filter (noise filter before the full tracker). Detection thresholds stay in
+  # detector:, so the debug window still shows weak boxes (gray).
+  confirm_frames: 3          # speak an object only if seen in >= 3 ...
+  window_frames: 5           # ... of the last 5 frames, in roughly the same place:
+  confirm_center_dist: 0.15  #   box centers at most 15% of the frame apart
+  confirm_iou: 0.3           #   and IoU >= 0.3 with the previous box
+  speak_conf_default: 0.35   # confidence needed to speak classes not listed below
+  speak_conf:
+    car: 0.45
+    bus: 0.45
+    truck: 0.45
+    motorcycle: 0.45
+    person: 0.35
+    pole: 0.25
+    bollard: 0.25
+    traffic_cone: 0.25
+    fire_hydrant: 0.25
+    curb: 0.20
+    stairs: 0.20
+    pothole: 0.20
+    manhole: 0.20
+  horizon_bottom: 0.4        # speak only boxes whose bottom is in the lower 60% of the frame
+  min_speak_height: 0.15     #   or that are taller than 15% of it (far objects stay silent)
+  vehicles: [car, bus, truck, motorcycle]
+  vehicle_min_height: 0.20   # vehicles: spoken only when taller than 20% of the frame
+  mute_non_hazards: false    # true (or key m in the debug window): speak only hazard_classes
+  hazard_classes: [curb, stairs, pothole, manhole, pole, bollard, traffic_cone, fire_hydrant,
+                   barrier, person, car, bus, truck, motorcycle]
 
 app:
   camera_retry_s: 2.0        # seconds between camera reconnect attempts

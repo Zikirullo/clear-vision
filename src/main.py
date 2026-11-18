@@ -6,6 +6,8 @@ Run from the repo root:
     python -m src.main --no-window --mute    # headless, log only
     python -m src.main --backend hybrid      # COCO model + zero-training hazard model
 
+Keys in the debug window: q quits, m toggles "hazards only" (navigator.mute_non_hazards).
+
 Press q in the window (or Ctrl+C in the terminal) to quit.
 """
 
@@ -20,6 +22,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any, TextIO
 
 import cv2
@@ -29,7 +32,8 @@ import yaml
 from src.camera import Camera
 from src.detection import Detection
 from src.detector import BACKENDS, DetectorBackend, build_detector
-from src.navigator import Message, NavigatorConfig, choose_message, direction, proximity, risk
+from src.navigator import Message, NavigatorConfig, direction, proximity, risk, speak_threshold
+from src.planner import SpeechPlanner
 from src.speaker import Speaker
 
 logger = logging.getLogger("clear_vision")
@@ -193,15 +197,24 @@ def box_color(det: Detection, nav_cfg: NavigatorConfig) -> tuple[int, int, int]:
     return GREEN
 
 
-def draw_detections(frame: np.ndarray, detections: list[Detection], nav_cfg: NavigatorConfig) -> None:
+def draw_detections(
+    frame: np.ndarray, detections: list[Detection], nav_cfg: NavigatorConfig,
+    speakable: Iterable[Detection] = (),
+) -> None:
+    """Gray thin: below the speech threshold. Colored thin: confident but not yet
+    confirmed (or too far). Colored thick: may be spoken."""
     h, w = frame.shape[:2]
+    speakable = set(speakable)
     for x in (nav_cfg.left_boundary, nav_cfg.right_boundary):
         cv2.line(frame, (int(x * w), 0), (int(x * w), h), GRAY, 1)
+    horizon = int(nav_cfg.horizon_bottom * h)
+    cv2.line(frame, (0, horizon), (w, horizon), GRAY, 1, cv2.LINE_4)
     for det in detections:
-        color = box_color(det, nav_cfg)
+        weak = det.confidence < speak_threshold(det.class_name, nav_cfg)
+        color = GRAY if weak else box_color(det, nav_cfg)
         p1 = (int(det.x1 * w), int(det.y1 * h))
         p2 = (int(det.x2 * w), int(det.y2 * h))
-        cv2.rectangle(frame, p1, p2, color, 2)
+        cv2.rectangle(frame, p1, p2, color, 3 if det in speakable else 1)
         label = f"{det.class_name} {det.confidence:.2f} {direction(det, nav_cfg)} {proximity(det, nav_cfg)}"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         top = max(p1[1] - th - 6, 0)
@@ -210,10 +223,12 @@ def draw_detections(frame: np.ndarray, detections: list[Detection], nav_cfg: Nav
 
 
 def draw_overlay(
-    frame: np.ndarray, t: Timings, device: str, healthy: bool, last_msg: Message | None
+    frame: np.ndarray, t: Timings, device: str, healthy: bool, last_msg: Message | None,
+    hazards_only: bool = False,
 ) -> None:
     lines = [
-        f"FPS {t.fps:4.1f}   device {device}   camera {'OK' if healthy else 'LOST'}",
+        f"FPS {t.fps:4.1f}   device {device}   camera {'OK' if healthy else 'LOST'}"
+        + ("   HAZARDS ONLY (m)" if hazards_only else ""),
         f"capture age {t.capture_age_ms:5.1f} ms   inference {t.inference_ms:5.1f} ms   total {t.total_ms:5.1f} ms",
     ]
     for i, text in enumerate(lines):
@@ -245,7 +260,7 @@ class App:
         self.session = SessionLog(LOG_DIR, muted=args.mute)
         self.detector: DetectorBackend | None = None
 
-        self.last_spoken: dict[str, float] = {}
+        self.planner = SpeechPlanner(self.nav_cfg)
         self.camera_lost_announced = False
         self.last_msg: Message | None = None
         self.last_msg_time = 0.0
@@ -327,8 +342,14 @@ class App:
             elif self.args.no_window:
                 time.sleep(0.002)
 
-            if not self.args.no_window and cv2.waitKey(1) & 0xFF == ord("q"):
-                return
+            if not self.args.no_window:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    return
+                if key == ord("m"):
+                    on = self.planner.toggle_mute_non_hazards()
+                    logger.info("Hazards only: %s", "on" if on else "off")
+                    self.system_message("Hazards only" if on else "All objects")
             now = time.monotonic()
             if now - last_stats >= self.stats_interval_s:
                 self._log_stats(now - last_stats)
@@ -354,13 +375,14 @@ class App:
         t.inference_ms = self.detector.last_inference_ms
 
         now = time.monotonic()
-        msg = choose_message(detections, now, self.last_spoken, self.nav_cfg)
+        plan = self.planner.update(detections, now)
+        msg = plan.message
         t.total_ms = (time.monotonic() - ts) * 1000
         t.history.append(t.total_ms)
         # Normal messages wait for silence instead of piling up; urgent ones
         # always go through (the speaker interrupts for them).
         if msg is not None and (msg.priority == "urgent" or not self.speaker_busy):
-            self.last_spoken[msg.key] = now
+            self.planner.mark_spoken(msg, now)
             self.announce(msg, t.total_ms)
 
         if last_ts is not None and ts > last_ts:
@@ -373,9 +395,9 @@ class App:
 
         if not self.args.no_window:
             shown = frame.copy()
-            draw_detections(shown, detections, self.nav_cfg)
+            draw_detections(shown, detections, self.nav_cfg, plan.speakable)
             recent = self.last_msg if now - self.last_msg_time < self.show_message_s else None
-            draw_overlay(shown, t, self.detector.device, self.cameras.healthy, recent)
+            draw_overlay(shown, t, self.detector.device, self.cameras.healthy, recent, self.planner.mute_non_hazards)
             cv2.imshow(WINDOW, shown)
 
     def _log_stats(self, elapsed_s: float) -> None:

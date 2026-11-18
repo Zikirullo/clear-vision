@@ -56,6 +56,10 @@ camera.py → detector.py → tracker → navigator.py → speaker.py
 - tracker: keeps object IDs stable across frames.
 - `navigator.py`: works out direction, distance and a risk score for each object,
   then decides what to say.
+  - Speech filter: per-class speak thresholds (separate from the detection thresholds),
+    3-of-5-frame confirmation, a horizon/size zone, cooldowns, and hazards-only.
+  - `planner.py` holds the frame history and last-spoken times for `main.py` and
+    `scripts/replay.py`.
 - `speaker.py`: non-blocking TTS queue with priorities. Urgent warnings jump the queue.
 - `main.py`: wires the pipeline together, with a debug window and an FPS readout.
 
@@ -83,5 +87,6 @@ pip install -r requirements.txt
 python -m src.main           # run the app
 python -m src.main --backend hybrid   # zero-training hazard detection
 python scripts/compare_detectors.py photos/   # FPS + counts per backend
+python scripts/replay.py clip.mp4 [--no-filter]   # every message the app would speak, with times
 pytest                       # run tests
 ```

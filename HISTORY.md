@@ -5,6 +5,73 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: speech noise filter and replay script (2026-11-18)
+
+- Why: in the first live test indoors, the app said "car ahead" and "pole, right, close"
+  with no cars or poles around. The model knows only outdoor street scenes, so it forces
+  walls, door frames, columns and furniture into our classes, and every single-frame guess
+  was spoken at once. This is a light filter before the full tracker (Phase 4).
+- `src/navigator.py` (pure functions, new `NavigatorConfig` fields):
+  - `speak_threshold` / `confident_enough`: per-class speak thresholds (vehicles 0.45,
+    person 0.35, pole/bollard/traffic_cone/fire_hydrant 0.25, curb/stairs/pothole/manhole
+    0.20, others 0.35). These are separate from the detection thresholds, so the debug
+    window still shows weak boxes.
+  - `same_object` / `is_confirmed`: speak only if the same class was seen in >= 3 of the
+    last 5 frames in roughly the same place (centers <= 0.15 apart, IoU >= 0.3 with the
+    previous match). Gaps don't break the chain, and a slowly moving object stays the same
+    object.
+  - `in_speaking_zone`: box bottom in the lower 60% of the frame, or box height > 15%.
+    Vehicles only when taller than 20%.
+  - `allowed_class`: with `mute_non_hazards`, only `hazard_classes` are spoken.
+  - `plan_speech()` returns candidates, speakable boxes and the message.
+  - Cooldown: 4 s per class + direction (unchanged); urgent repeats after 2 s (was 1.5).
+- `src/planner.py` `SpeechPlanner`: the frame history, last-spoken times and the
+  hazards-only toggle, shared by `main.py` and `scripts/replay.py`.
+- `src/main.py`:
+  - Uses the planner.
+  - Debug window: weak boxes gray, confident-but-unconfirmed boxes thin, speakable boxes
+    thick, and a horizon line.
+  - Key `m` toggles hazards only and says "Hazards only" / "All objects".
+- `scripts/replay.py`:
+  - Plays a video file on its own clock (frame / fps), or `--source 0` for the webcam, and
+    prints every message with its time and a count per class.
+  - `--no-filter` gives the old behaviour for before/after comparisons. Also `--step`,
+    `--seconds`, `--show` and `--hazards-only`.
+- Results (fine-tuned model, replay of every frame):
+  - 24-photo street video (48 s): 28 messages without the filter, 16 with it. Stairs (both
+    staircases), potholes (2), manholes (4) and curbs (1) are still spoken; the dropped
+    stairs message was only the 1.5 s urgent repeat. Cones still come out as "Fire
+    hydrant".
+  - Indoor stand-in: a 60 s clip of 9 panned Wikimedia room photos (classrooms, corridor,
+    hotel lobbies, living rooms, offices). 13 messages before, 5 after:
+    - 1 correct: a real person in an office.
+    - 1 false: a Buddha painting as person (0.37).
+    - 3 false: a painted column as barrier (0.43), spoken three times because its
+      direction changed from right to ahead while panning, plus the 2 s urgent repeat.
+  - Live with the debug window: 20.7-21.3 FPS, frame-to-decision 47-48 ms (unchanged).
+    Confirmation delays the first warning of a new object by ~2 frames (~100 ms, ~145 ms
+    in total).
+- Tests: 229 pass. New `tests/test_speech_filter.py` (26):
+  - config values
+  - flicker (1 of 5) silent; 2 of 5 silent, 3 of 5 spoken; steady object spoken once;
+    slow motion confirmed; jumping boxes not; another class in the same place doesn't
+    count; only the last window counts
+  - 4 s normal and 2 s urgent repeats
+  - speak thresholds on both sides for car, person, pole, curb and bench; weak boxes not
+    candidates
+  - horizon and size zone, vehicles at 20%, hazards-only toggle
+  - `replay.py` on a generated clip (video times, flicker silent, `--no-filter`, `--step`,
+    `--source`)
+- Not tested or open:
+  - The real webcam room test (acceptance: at most 1-2 messages in 60 s). The stand-in
+    clip still gives 4 false ones.
+  - Indoor columns as "barrier" are the main remaining source. Raising the barrier speak
+    threshold would also silence real street barriers (0.29-0.40 on the photos).
+  - A tracker (Phase 4) would stop direction changes from creating new cooldown keys for
+    the same object.
+
+---
+
 ## feat: fine-tuned detector in the live app (2026-11-18)
 
 - Why: budget_v1 (notebook 05) beat the zero-training hybrid on 18 of 20 classes on the
