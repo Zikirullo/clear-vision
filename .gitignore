@@ -1,4 +1,5 @@
 .venv/
+.venv-export/
 __pycache__/
 *.pyc
 .DS_Store
@@ -13,3 +14,9 @@ models/*.ts
 models/openvocab/
 models/**/*.pt
 models/**/*.onnx
+
+# Local model exports (upload to Drive exports/<run>/mobile/, never commit)
+exports/
+
+# Local check images (Wikimedia street photos etc.), not part of the repo
+data/

@@ -90,3 +90,12 @@ python scripts/compare_detectors.py photos/   # FPS + counts per backend
 python scripts/replay.py clip.mp4 [--no-filter]   # every message the app would speak, with times
 pytest                       # run tests
 ```
+
+Core ML (iPhone) export runs on the Mac in its own environment, `.venv-export` (coremltools
+needs numpy < 2.4 and torch 2.7; see `requirements-export.txt`):
+
+```bash
+/opt/homebrew/bin/python3.11 -m venv .venv-export
+.venv-export/bin/python -m pip install --only-binary=:all: -r requirements-export.txt
+.venv-export/bin/python scripts/export_coreml.py --run budget_v1 --images data/street_photos
+```

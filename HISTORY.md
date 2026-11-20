@@ -5,6 +5,66 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: Core ML export on the Mac with its own environment (2026-11-20)
+
+- Why: in Colab (Python 3.13), notebook 07's Core ML export failed with `TypeError: only
+  0-dimensional arrays can be converted to Python scalars` in coremltools'
+  `frontend/torch/ops.py` `_cast`.
+  - Cause: numpy 2.4+ breaks coremltools 9.0's PyTorch converter (coremltools issue #2633,
+    fix merged Jan 2026 but released only as a 9.1 pre-release).
+  - Each export runs in its own process, but numpy 2.4 was already imported before
+    Ultralytics' numpy downgrade, so the export still ran on numpy 2.4.
+- Export environment `.venv-export` (gitignored, separate from the app's `.venv`):
+  - Homebrew Python 3.11.15, built from wheels only, recorded in `requirements-export.txt`.
+  - ultralytics 8.4.207 (same as the app), coremltools 9.0 (latest stable; arm64 wheels
+    for Python 3.8-3.13), torch 2.7.0 + torchvision 0.22.0 (coremltools 9.0: "Torch 2.7.0 is
+    the most recent version that has been tested"), numpy 2.3.5 (< 2.4).
+- `scripts/export_coreml.py --run budget_v1 --images data/street_photos`:
+  - Exports `models/<run>/best.pt` at the imgsz from `metrics.json` (512), FP16
+    (`quantize=16`), `nms=True`, with NMS confidence 0.15 (the lowest per-class threshold),
+    from a temporary copy of the weights.
+  - Plugin settings: the `ultralytics_yolo` docs say "nms=True embeds NMS where supported".
+    The official iOS assets use `nms=False` only because they are NMS-free YOLO26 models;
+    our YOLO11n needs NMS.
+  - On the numpy TypeError it retries once with `nms=False`; not needed in the final run.
+  - Writes `exports/<run>/mobile/clear_vision_<run>.mlpackage`, `.mlpackage.zip` and
+    `coreml_metrics.json` (`exports/` is gitignored). A missing `best.pt` gives the Drive
+    path to download from, and numpy >= 2.4 is refused with the issue number.
+  - Checks the embedded metadata (task detect, the 20 classes, imgsz) and compares Core ML
+    with `best.pt` image by image: same class and IoU > 0.5, one-to-one, share = 2·pairs /
+    all boxes, pass >= 95%, median time per image.
+  - With no images it reports NOT CHECKED, not PASS; the first draft printed PASS.
+- Result for budget_v1 (macOS 27.2.1, M1):
+  - Exported first try with `nms=True` (4.5 s). `.mlpackage` 5.4 MB, zip 4.9 MB, metadata OK.
+  - 24 Wikimedia street photos (re-downloaded to `data/street_photos/`, gitignored), boxes
+    at conf >= 0.25: 47 of 49/48 boxes paired, 96.9%, PASS. The only differences are 1-2 small
+    cars near 0.25 in two crowded scenes.
+  - Speed: Core ML 12.1 ms per image, best.pt 41.6 ms.
+  - That comparison feeds best.pt the same 512x512 square input as Core ML (`rect=False`).
+    With Ultralytics' default rectangular letterbox for the .pt (`--rect-pt`) the share was
+    92.8%; the input shape alone moves borderline scores. On the iPhone the plugin feeds the
+    fixed square input, so the square comparison is the relevant one.
+  - No test-split images exist locally (merged.zip is on Drive), so the 50-test-image
+    check was not run; `--test-images` supports it.
+- PyTorch MPS on macOS 27.2.1 now works (tensor ops, conv and YOLO predict, each in its own
+  process; same detections as the CPU):
+  - `.venv` (torch 2.15): 20.1 ms on MPS vs 25.5 ms on the CPU per 512 image. The app's
+    `device: auto` now picks MPS.
+  - `.venv-export` (torch 2.7): 30.0 ms on MPS vs 26.5 ms on the CPU.
+- Notebook 07: Setup installs `"numpy<2.4" "coremltools>=9.0"` with ultralytics before any
+  export process starts. The header points to the Mac route.
+- CLAUDE.md: commands for `.venv-export`. `.gitignore`: `.venv-export/`, `exports/`, `data/`.
+- Tests: 255 pass. New `tests/test_export_coreml.py` (5): one-to-one matching (class, IoU,
+  no double pairs), the match share incl. budget_v1's 96.9%, the missing-weights message, the
+  numpy 2.4 guard, the image listing.
+- Not tested or open:
+  - The notebook 07 numpy pin in Colab.
+  - The live app on MPS (device auto) with latency.
+  - Loading the `.mlpackage.zip` in the Flutter plugin on an iPhone.
+  - Uploading the three files to Drive `exports/budget_v1/mobile/` (manual).
+
+---
+
 ## feat: mobile export notebook (TFLite, Core ML, Flutter plugin files) (2026-11-18)
 
 - Why: run the fine-tuned detector on phones, and give the Flutter app

@@ -1,0 +1,15 @@
+# Export environment for Core ML (iPhone) on the Mac: .venv-export, separate from the app's .venv.
+#   /opt/homebrew/bin/python3.11 -m venv .venv-export
+#   .venv-export/bin/python -m pip install --only-binary=:all: -r requirements-export.txt
+#   .venv-export/bin/python scripts/export_coreml.py --run budget_v1 --images data/street_photos
+#
+# coremltools 9.0 is the latest stable release (Nov 2025): Apple-silicon wheels for Python 3.8-3.13,
+# "Torch 2.7.0 is the most recent version that has been tested". numpy 2.4+ breaks its PyTorch
+# converter ("only 0-dimensional arrays can be converted to Python scalars", coremltools #2633;
+# fixed only in a 9.1 pre-release), so numpy stays below 2.4.
+ultralytics==8.4.207
+coremltools==9.0
+torch==2.7.0
+torchvision==0.22.0
+numpy>=2.0,<2.4
+pyyaml
