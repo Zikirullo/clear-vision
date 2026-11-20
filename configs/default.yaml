@@ -1,10 +1,12 @@
 # Clear Vision default configuration. All tunable numbers live here.
 
 camera:
-  source: 0            # webcam index, video file path, or stream URL
+  source: 0            # webcam index, video file path, or stream URL. On macOS a nearby iPhone
+                       # (Continuity Camera) can take index 0 and stall every few seconds;
+                       # the built-in camera is then 1 (--source 1)
   width: 1280
   height: 720
-  stale_timeout: 2.0   # seconds without a new frame before camera is unhealthy
+  stale_timeout: 1.5   # seconds without a new frame before "Camera lost" (shorter hiccups are ridden out)
 
 detector:
   backend: hybrid                 # ultralytics | onnx | openvocab | finetuned | hybrid (or --backend).

@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import signal
 import sys
 import threading
 import time
@@ -121,7 +122,7 @@ class CameraSupervisor:
             self.source,
             self.cam_cfg.get("width"),
             self.cam_cfg.get("height"),
-            stale_timeout=self.cam_cfg.get("stale_timeout", 2.0),
+            stale_timeout=self.cam_cfg.get("stale_timeout", 1.5),
         )
 
     def open_initial(self) -> bool:
@@ -142,9 +143,7 @@ class CameraSupervisor:
         with self._lock:
             new, self._new_camera = self._new_camera, None
         if new is not None:
-            old, self.camera = self.camera, new
-            if old is not None:
-                threading.Thread(target=old.stop, daemon=True).start()
+            self.camera = new  # the old camera was already released in _reconnect
             logger.info("Camera reconnected")
             return
 
@@ -159,6 +158,12 @@ class CameraSupervisor:
         threading.Thread(target=self._reconnect, name="camera-reconnect", daemon=True).start()
 
     def _reconnect(self) -> None:
+        # Release the dead camera first: two open captures on one webcam make macOS kill
+        # the new one about a second after the old one is released (seen on macOS 27:
+        # an endless "Camera lost" / "Camera back" loop).
+        old = self.camera
+        if old is not None:
+            old.stop()
         logger.info("Trying to reopen camera %r", self.source)
         try:
             camera = self._make_camera().start()
@@ -426,7 +431,12 @@ class App:
         logger.info("Session log saved: %s", self.session.path)
 
 
+def _stop_on_sigterm(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt  # same clean shutdown as Ctrl+C (kill, or a script stopping the app)
+
+
 def main(argv: list[str] | None = None) -> int:
+    signal.signal(signal.SIGTERM, _stop_on_sigterm)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     args = parse_args(argv)
     cfg = load_config(args.config)

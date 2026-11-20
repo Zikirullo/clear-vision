@@ -18,7 +18,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_STALE_TIMEOUT_S = 2.0
+DEFAULT_STALE_TIMEOUT_S = 1.5  # webcams hiccup for a fraction of a second; only longer gaps count
 _RETRY_DELAY_S = 0.05
 
 
@@ -175,6 +175,7 @@ class Camera:
         interval = 1.0 / self.source_fps if self.is_file and self.source_fps else 0.0
         next_due = time.monotonic()
         failures = 0
+        failed_since = 0.0
 
         while not self._stop_event.is_set():
             ok, frame = cap.read()
@@ -187,12 +188,16 @@ class Camera:
                     return
                 failures += 1
                 if failures == 1:
-                    logger.warning("Camera read failed: source=%r", self.source)
+                    failed_since = now
+                    # Quiet: short hiccups are normal (macOS webcams drop a read now and then).
+                    # `healthy` turns False only after `stale_timeout` without a frame.
+                    logger.debug("Camera read failed: source=%r", self.source)
                 time.sleep(_RETRY_DELAY_S)
                 continue
 
             if failures:
-                logger.info("Camera recovered after %d failed reads", failures)
+                level = logging.WARNING if now - failed_since >= self.stale_timeout else logging.DEBUG
+                logger.log(level, "Camera recovered after %d failed reads (%.2f s)", failures, now - failed_since)
                 failures = 0
 
             if interval:

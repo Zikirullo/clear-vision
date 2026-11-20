@@ -5,6 +5,60 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## fix: camera reconnect loop and short webcam hiccups (2026-11-20)
+
+- Why: in the first live webcam runs on macOS 27 (MPS), the app said "Camera lost" /
+  "Camera back" about every 4 s and processed only ~3-14 frames/s.
+- Findings (webcam runs of 30 s each, fine-tuned budget_v1, logs in `logs/`):
+  - CPU instead of MPS: the same dropouts ("Camera lost" spoken 7x in 30 s, ~2
+    frames/s). The GPU and the camera do not interfere.
+  - OpenCV 5.0.0.93 instead of 5.1.0.95 (upgraded in `.venv` on 2026-11-19, not by these
+    changes), same old code on MPS: 5x in 30 s, 3.7 frames/s. Not the cause.
+  - Our bug: on a dead camera, `CameraSupervisor` opened a second capture on the same
+    webcam while the old one was still open, and released the old one after the swap.
+    macOS then killed the new capture about 1 s later, so one short hiccup became an
+    endless lost/back loop.
+  - The remaining stalls came from index 0 being the iPhone as a Continuity Camera
+    (`system_profiler`: FaceTime HD Camera + iPhone_zk Camera; index 0 defaults to
+    1920x1080, which the M1's built-in camera can't do).
+    - In a bare OpenCV script, index 0 delivered ~150 frames, then nothing for 13 s.
+    - Index 1 (built-in camera) gave a steady 30.1 frames/s for 20 s, longest gap 0.12 s.
+- Fix:
+  - `src/main.py` `CameraSupervisor._reconnect` releases the old camera before opening the
+    new one, so there is never more than one capture per webcam.
+  - `src/camera.py`: failed reads are retried quietly (debug log). `healthy` (and so
+    "Camera lost") turns False only after `stale_timeout` without a frame, now 1.5 s
+    (`DEFAULT_STALE_TIMEOUT_S` and `camera.stale_timeout`). A recovery is logged as a
+    warning only if the gap reached that threshold. "Camera back" is still spoken once on
+    recovery.
+  - `src/main.py`: SIGTERM stops the app like Ctrl+C. Background and scripted runs ignore
+    SIGINT, so the first 30 s CPU test ran 147 s.
+  - `configs/default.yaml`: a note on the camera index (an iPhone can be index 0).
+    `source` stays 0, because the index order changes when the iPhone is away.
+  - `requirements.txt` and `.venv`: `opencv-python==5.0.0.93`.
+- Results, fixed code, MPS, 30 s:
+  - iPhone camera (index 0): "Camera lost" 3x (was 5-7), 14.0 frames/s (was 3.7). The
+    reconnect loop is gone; the left-over stalls are the iPhone's.
+  - Built-in camera (`--source 1`), OpenCV 5.0.0.93: 0 dropouts, 19.2 frames/s over the
+    first 30 s incl. start (~27/s in steady 5 s windows), model 18-23 ms, frame-to-decision
+    36-50 ms on average.
+  - Built-in camera, OpenCV 5.1.0.95: 0 dropouts, 14.8 frames/s (~23.6/s steady), model
+    20-31 ms. So 5.0.0.93 stays.
+  - No MPS errors or warnings in any run.
+- Tests: 261 pass. New `tests/test_camera.py` (6), with a scripted fake VideoCapture:
+  - a 0.3 s hiccup stays healthy; a 1 s gap is lost about 0.5 s after the last frame and
+    comes back
+  - the 1.5 s default and config
+  - the supervisor never has two cameras open across 5 reconnects (fails with the old code)
+  - "Camera lost"/"Camera back" are spoken exactly once each
+  - SIGTERM behaves like Ctrl+C
+- Not tested or open:
+  - Picking the built-in camera by name instead of index (OpenCV has no device names;
+    needs AVFoundation).
+  - Longer webcam runs while walking.
+
+---
+
 ## feat: Core ML export on the Mac with its own environment (2026-11-20)
 
 - Why: in Colab (Python 3.13), notebook 07's Core ML export failed with `TypeError: only
