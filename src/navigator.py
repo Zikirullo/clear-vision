@@ -18,6 +18,25 @@ Proximity = Literal["near", "mid", "far"]
 Priority = Literal["urgent", "normal"]
 
 
+DEFAULT_PHRASES: dict[str, Any] = {
+    "ahead": "{name} ahead",
+    "side": "{name}, {direction}",
+    "close_suffix": ", close",
+    "unknown": "Obstacle",
+    "directions": {"left": "left", "right": "right"},
+    "system": {
+        "started": "Clear Vision started",
+        "camera_unavailable": "Camera not available",
+        "camera_lost": "Camera lost",
+        "camera_back": "Camera back",
+        "model_failed": "Detection model failed. Clear Vision cannot run.",
+        "hazard_model_failed": "Hazard detector failed. Detecting people and vehicles only.",
+        "hazards_only": "Hazards only",
+        "all_objects": "All objects",
+    },
+}
+
+
 @dataclass(frozen=True)
 class NavigatorConfig:
     left_boundary: float = 0.333
@@ -50,6 +69,16 @@ class NavigatorConfig:
         "curb", "stairs", "pothole", "manhole", "pole", "bollard", "traffic_cone", "fire_hydrant",
         "barrier", "person", "car", "bus", "truck", "motorcycle",
     )
+    # Naming: classes the model confuses with each other form a group. Within a group the
+    # warning always counts as one object (confirmation, cooldown key); the class name is
+    # spoken only when the model is sure, otherwise `phrases["unknown"]` ("Obstacle").
+    name_groups: Mapping[str, Sequence[str]] = field(
+        default_factory=lambda: {"post": ("traffic_cone", "bollard", "fire_hydrant", "pole")}
+    )
+    name_min_conf: float = 0.6  # below this confidence a group member is spoken as "Obstacle"
+    name_overlap_iou: float = 0.5  # two different group classes on one object -> "Obstacle"
+    phrases: Mapping[str, Any] = field(default_factory=lambda: dict(DEFAULT_PHRASES))
+    spoken_names: Mapping[str, str] = field(default_factory=dict)  # class -> text; default: "traffic_cone" -> "Traffic cone"
 
     @classmethod
     def from_dict(cls, cfg: Mapping[str, Any]) -> NavigatorConfig:
@@ -100,16 +129,64 @@ def risk(det: Detection, cfg: NavigatorConfig = DEFAULT_CONFIG) -> float:
     return prox_weight * dir_weight * severity(det.class_name, cfg)
 
 
+def class_group(class_name: str, cfg: NavigatorConfig = DEFAULT_CONFIG) -> str:
+    """The name group a class belongs to ("pole" -> "post"), or the class itself."""
+    for group, members in cfg.name_groups.items():
+        if class_name in members:
+            return group
+    return class_name
+
+
+def box_iou(a: Detection, b: Detection) -> float:
+    ix = max(0.0, min(a.x2, b.x2) - max(a.x1, b.x1))
+    iy = max(0.0, min(a.y2, b.y2) - max(a.y1, b.y1))
+    inter = ix * iy
+    union = a.area + b.area - inter
+    return inter / union if union > 0 else 0.0
+
+
 def message_key(det: Detection, cfg: NavigatorConfig = DEFAULT_CONFIG) -> str:
-    return f"{det.class_name}:{direction(det, cfg)}"
+    """Cooldown key: group + direction ("post:left"), so a pole that is later spoken as
+    "Obstacle" is still the same warning."""
+    return f"{class_group(det.class_name, cfg)}:{direction(det, cfg)}"
 
 
-def build_phrase(class_name: str, where: Direction, how_close: Proximity) -> str:
-    """Short phrase such as "Car ahead, close" or "Traffic cone, left"."""
-    name = class_name.replace("_", " ").capitalize()
-    text = f"{name} ahead" if where == "ahead" else f"{name}, {where}"
+def display_name(class_name: str, cfg: NavigatorConfig = DEFAULT_CONFIG) -> str:
+    """Spoken name of a class: `spoken_names` entry, else "traffic_cone" -> "Traffic cone"."""
+    return cfg.spoken_names.get(class_name) or class_name.replace("_", " ").capitalize()
+
+
+def name_is_doubtful(det: Detection, context: Iterable[Detection], cfg: NavigatorConfig = DEFAULT_CONFIG) -> bool:
+    """True if a group member should be spoken as "Obstacle": its confidence is below
+    `name_min_conf`, or a different class of the same group overlaps it (IoU >=
+    `name_overlap_iou`), i.e. the model can't decide what the object is."""
+    group = class_group(det.class_name, cfg)
+    if group == det.class_name:  # not in a name group
+        return False
+    if det.confidence < cfg.name_min_conf:
+        return True
+    return any(
+        other.class_name != det.class_name
+        and class_group(other.class_name, cfg) == group
+        and box_iou(det, other) >= cfg.name_overlap_iou
+        for other in context
+    )
+
+
+def build_phrase(
+    class_name: str, where: Direction, how_close: Proximity, cfg: NavigatorConfig = DEFAULT_CONFIG,
+    name: str | None = None,
+) -> str:
+    """Short phrase such as "Car ahead, close" or "Traffic cone, left" from `phrases`.
+    `name` replaces the class's spoken name (e.g. "Obstacle")."""
+    phrases = cfg.phrases
+    spoken = name if name is not None else display_name(class_name, cfg)
+    if where == "ahead":
+        text = phrases["ahead"].format(name=spoken)
+    else:
+        text = phrases["side"].format(name=spoken, direction=phrases["directions"][where])
     if how_close == "near":
-        text += ", close"
+        text += phrases["close_suffix"]
     return text
 
 
@@ -137,6 +214,7 @@ def choose_message(
     now: float,
     last_spoken: Mapping[str, float],
     cfg: NavigatorConfig = DEFAULT_CONFIG,
+    context: Iterable[Detection] | None = None,
 ) -> Message | None:
     """Pick the single most dangerous object worth announcing, if any.
 
@@ -146,7 +224,12 @@ def choose_message(
 
     Pure: `last_spoken` (key -> time last spoken) is not modified. After the
     message is actually spoken, the caller records `last_spoken[msg.key] = now`.
+
+    Ties in risk keep the input order (stable sort). `context` (default: `detections`) is
+    every confident detection of the frame, used to spot two group classes on one object.
     """
+    detections = list(detections)
+    context = detections if context is None else list(context)
     scored = sorted(
         ((risk(d, cfg), d) for d in detections),
         key=lambda pair: pair[0],
@@ -161,7 +244,8 @@ def choose_message(
         key = message_key(det, cfg)
         if is_on_cooldown(key, priority, now, last_spoken, cfg):
             continue
-        return Message(text=build_phrase(det.class_name, where, how_close), priority=priority, key=key)
+        name = cfg.phrases["unknown"] if name_is_doubtful(det, context, cfg) else None
+        return Message(text=build_phrase(det.class_name, where, how_close, cfg, name), priority=priority, key=key)
     return None
 
 
@@ -190,18 +274,15 @@ def allowed_class(det: Detection, mute_non_hazards: bool, cfg: NavigatorConfig =
 
 
 def same_object(a: Detection, b: Detection, cfg: NavigatorConfig = DEFAULT_CONFIG) -> bool:
-    """Same class, roughly the same place: centers close and boxes overlapping."""
-    if a.class_name != b.class_name:
+    """Same class (or the same name group, e.g. cone and hydrant), roughly the same place:
+    centers close and boxes overlapping."""
+    if class_group(a.class_name, cfg) != class_group(b.class_name, cfg):
         return False
     ax, ay = a.center_x, (a.y1 + a.y2) / 2
     bx, by = b.center_x, (b.y1 + b.y2) / 2
     if ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5 > cfg.confirm_center_dist:
         return False
-    ix = max(0.0, min(a.x2, b.x2) - max(a.x1, b.x1))
-    iy = max(0.0, min(a.y2, b.y2) - max(a.y1, b.y1))
-    inter = ix * iy
-    union = a.area + b.area - inter
-    return union > 0 and inter / union >= cfg.confirm_iou
+    return box_iou(a, b) >= cfg.confirm_iou
 
 
 def is_confirmed(
@@ -251,4 +332,4 @@ def plan_speech(
         d for d in candidates
         if in_speaking_zone(d, cfg) and allowed_class(d, mute, cfg) and is_confirmed(d, history, cfg)
     )
-    return SpeechPlan(candidates, speakable, choose_message(speakable, now, last_spoken, cfg))
+    return SpeechPlan(candidates, speakable, choose_message(speakable, now, last_spoken, cfg, context=candidates))

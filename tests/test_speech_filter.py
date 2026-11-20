@@ -88,10 +88,18 @@ def test_jumping_boxes_are_not_one_object(cfg: NavigatorConfig) -> None:
 
 
 def test_other_class_in_the_same_place_does_not_confirm(cfg: NavigatorConfig) -> None:
-    a, b = box("pole", 0.9), box("bollard", 0.9)
+    a, b = box("car", 0.9), box("truck", 0.9)
     assert not same_object(a, b, cfg)
     assert not is_confirmed(a, [[b], [b], [b], [b]], cfg)
     assert is_confirmed(a, [[b], [a], [b], [a]], cfg)
+
+
+def test_post_group_classes_confirm_each_other(cfg: NavigatorConfig) -> None:
+    # The model flips between cone and hydrant on one object: still one object, so the
+    # warning is never lost to a name doubt.
+    cone, hydrant = box("traffic_cone", 0.9), box("fire_hydrant", 0.9)
+    assert same_object(cone, hydrant, cfg)
+    assert is_confirmed(cone, [[hydrant], [cone]], cfg)
 
 
 def test_only_the_last_window_counts(cfg: NavigatorConfig) -> None:

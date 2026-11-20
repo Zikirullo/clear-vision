@@ -60,6 +60,10 @@ camera.py → detector.py → tracker → navigator.py → speaker.py
     3-of-5-frame confirmation, a horizon/size zone, cooldowns, and hazards-only.
   - `planner.py` holds the frame history and last-spoken times for `main.py` and
     `scripts/replay.py`.
+  - The rules are specified in `docs/navigation_spec.md` for the phone app. After changing
+    them or the `navigator:` config, run `scripts/export_nav_config.py` (writes
+    `models/nav_config.json`) and `scripts/make_nav_golden.py` (writes
+    `tests/golden/nav_cases.json`), then review both diffs.
 - `speaker.py`: non-blocking TTS queue with priorities. Urgent warnings jump the queue.
 - `main.py`: wires the pipeline together, with a debug window and an FPS readout.
 

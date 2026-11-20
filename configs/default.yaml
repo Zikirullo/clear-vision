@@ -159,6 +159,30 @@ navigator:
   mute_non_hazards: false    # true (or key m in the debug window): speak only hazard_classes
   hazard_classes: [curb, stairs, pothole, manhole, pole, bollard, traffic_cone, fire_hydrant,
                    barrier, person, car, bus, truck, motorcycle]
+  # Naming (lesson of 2026-11-18: budget_v1 calls some cones and bollards "fire hydrant").
+  # A group counts as one object for confirmation and cooldowns; its class name is spoken
+  # only when the model is sure, else phrases.unknown. The warning itself is never dropped.
+  name_groups:
+    post: [traffic_cone, bollard, fire_hydrant, pole]
+  name_min_conf: 0.6         # group member below this confidence -> "Obstacle"
+  name_overlap_iou: 0.5      # two different group classes overlapping this much -> "Obstacle"
+  # Spoken text (also exported to models/nav_config.json for the phone app)
+  phrases:
+    ahead: "{name} ahead"
+    side: "{name}, {direction}"
+    close_suffix: ", close"
+    unknown: Obstacle
+    directions: {left: left, right: right}
+    system:
+      started: Clear Vision started
+      camera_unavailable: Camera not available
+      camera_lost: Camera lost
+      camera_back: Camera back
+      model_failed: Detection model failed. Clear Vision cannot run.
+      hazard_model_failed: Hazard detector failed. Detecting people and vehicles only.
+      hazards_only: Hazards only
+      all_objects: All objects
+  spoken_names: {}           # class -> spoken text; default rule: traffic_cone -> "Traffic cone"
 
 app:
   camera_retry_s: 2.0        # seconds between camera reconnect attempts

@@ -5,6 +5,63 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: portable navigation rules (spec, nav_config.json, golden cases) (2026-11-21)
+
+- Why: before building the phone app, the app and Python must use identical rules and
+  numbers.
+- `docs/navigation_spec.md` describes `src/navigator.py` + `src/planner.py` exactly:
+  - inputs and state; geometry formulas (incl. the order of operations for `center_x`)
+  - the corridor: the middle third by box center, full height; no other corridor geometry
+    exists
+  - the per-frame pipeline (candidates, speaking zone, hazards-only, confirmation), the
+    risk formula, priorities, cooldowns, message templates, system messages
+  - what the live app adds (speech queue), every config key, how to change a rule, known
+    limits
+- Naming rule for street furniture (budget_v1 calls some cones and bollards "fire
+  hydrant", 2026-11-18):
+  - `name_groups: {post: [traffic_cone, bollard, fire_hydrant, pole]}`.
+  - A group member is spoken as "Obstacle" if its confidence is < `name_min_conf` (0.6),
+    or a different group class among the frame's candidates overlaps it with IoU >=
+    `name_overlap_iou` (0.5).
+  - Direction, distance and priority are never dropped. The group also counts as one
+    object for confirmation (otherwise a cone/hydrant flicker would never confirm and the
+    warning would be lost) and for the cooldown key (`post:left`, so "Pole, left" then
+    "Obstacle, left" is not repeated).
+  - The rule is per frame; a class flip across frames keeps the current name.
+- `src/navigator.py`:
+  - new: `class_group`, `box_iou`, `display_name`, `name_is_doubtful`
+  - `message_key` uses the group; `same_object` compares groups
+  - `build_phrase` and the templates come from `phrases`; `choose_message(context=...)` and
+    `plan_speech` pass the frame's candidates
+- `configs/default.yaml`: `name_groups`, `name_min_conf`, `name_overlap_iou`, `phrases`
+  (templates and system messages), `spoken_names`. `src/main.py` speaks its system
+  messages from `phrases.system` (same texts as before).
+- `scripts/export_nav_config.py` → `models/nav_config.json` (committed): the full
+  navigator config with defaults filled in, the resolved spoken name of every class, and
+  the fine-tuned detection thresholds.
+- `scripts/make_nav_golden.py` → `tests/golden/nav_cases.json`: 30 cases (23 speak, 7
+  silent), computed with the numbers from `nav_config.json`. They cover:
+  - confirmation (steady, flicker, 2 vs 3 of 5, motion, jumping boxes)
+  - cooldowns (4 s, 2 s, falling through to the next object)
+  - direction incl. the exact left boundary, and proximity/risk
+  - speak thresholds, speaking zone, vehicles at 20%, hazards-only, low risk
+  - 7 naming cases: confident name, < 0.6, exactly 0.6, two classes overlapping, weak
+    overlap ignored, flicker, shared cooldown
+- Tests: 296 pass. New `tests/test_nav_golden.py` (34):
+  - `nav_config.json` matches the YAML
+  - the naming rule is in the JSON
+  - 30 unique cases incl. Obstacle, urgent and silent ones
+  - Python reproduces every case exactly
+  - the stored inputs equal the generator's (no hand edits)
+  - Drift check: `name_min_conf` 0.61 makes exactly `post_name_at_exactly_min_conf` fail.
+  - `test_speech_filter`: pole/bollard is now one object, so that test uses car/truck; new
+    test that cone and hydrant confirm each other.
+- Not tested or open:
+  - The phone app's implementation of the spec (its golden test).
+  - The live app with the naming rule on a real street.
+
+---
+
 ## fix: camera reconnect loop and short webcam hiccups (2026-11-20)
 
 - Why: in the first live webcam runs on macOS 27 (MPS), the app said "Camera lost" /

@@ -280,6 +280,10 @@ class App:
         self.last_msg, self.last_msg_time = msg, time.monotonic()
         logger.info("Say [%s]: %s", msg.priority, msg.text)
 
+    def say_text(self, key: str) -> str:
+        """A system phrase from navigator.phrases.system (shared with the phone app)."""
+        return self.nav_cfg.phrases["system"][key]
+
     def system_message(self, text: str, priority: str = "normal") -> None:
         self.announce(Message(text=text, priority=priority, key=f"system:{text}"))  # type: ignore[arg-type]
 
@@ -294,13 +298,13 @@ class App:
             self.speaker.start()
         self.detector = self._load_detector()
         if self.detector is None:
-            self.system_message("Detection model failed. Clear Vision cannot run.", "urgent")
+            self.system_message(self.say_text("model_failed"), "urgent")
             self._wait_for_speech(5.0)
             return 1
 
-        self.system_message("Clear Vision started")
+        self.system_message(self.say_text("started"))
         if not self.cameras.open_initial():
-            self.system_message("Camera not available", "urgent")
+            self.system_message(self.say_text("camera_unavailable"), "urgent")
             self.camera_lost_announced = True
         logger.info("Session log: %s", self.session.path)
 
@@ -325,7 +329,7 @@ class App:
             except Exception:
                 logger.exception("Could not load the fallback COCO detector")
                 return None
-            self.system_message("Hazard detector failed. Detecting people and vehicles only.", "urgent")
+            self.system_message(self.say_text("hazard_model_failed"), "urgent")
             return detector
         return None
 
@@ -354,7 +358,7 @@ class App:
                 if key == ord("m"):
                     on = self.planner.toggle_mute_non_hazards()
                     logger.info("Hazards only: %s", "on" if on else "off")
-                    self.system_message("Hazards only" if on else "All objects")
+                    self.system_message(self.say_text("hazards_only" if on else "all_objects"))
             now = time.monotonic()
             if now - last_stats >= self.stats_interval_s:
                 self._log_stats(now - last_stats)
@@ -366,10 +370,10 @@ class App:
         if not healthy and not self.camera_lost_announced:
             camera = self.cameras.camera
             if camera is None or not camera.ended:
-                self.system_message("Camera lost", "urgent")
+                self.system_message(self.say_text("camera_lost"), "urgent")
                 self.camera_lost_announced = True
         elif healthy and self.camera_lost_announced:
-            self.system_message("Camera back")
+            self.system_message(self.say_text("camera_back"))
             self.camera_lost_announced = False
 
     def _process(self, frame: np.ndarray, ts: float, last_ts: float | None) -> None:

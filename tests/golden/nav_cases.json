@@ -1,0 +1,4819 @@
+{
+ "format_version": 1,
+ "config": "models/nav_config.json",
+ "spec": "docs/navigation_spec.md",
+ "semantics": "Replay each case's frames in order with a fresh state. A frame's message (if any) counts as spoken at that frame's time. Box = [x1, y1, x2, y2], fractions of the frame. Expected = every message, with frame index, time, text, priority and cooldown key.",
+ "cases": [
+  {
+   "id": "steady_stairs_close_ahead",
+   "description": "Steady stairs ahead and close: spoken once on the 3rd frame, urgent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Stairs ahead, close",
+     "priority": "urgent",
+     "key": "stairs:ahead"
+    }
+   ]
+  },
+  {
+   "id": "flicker_one_of_five_silent",
+   "description": "A car in 1 of every 5 frames never confirms.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": []
+    },
+    {
+     "t": 0.2,
+     "detections": []
+    },
+    {
+     "t": 0.3,
+     "detections": []
+    },
+    {
+     "t": 0.4,
+     "detections": []
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": []
+    },
+    {
+     "t": 0.7,
+     "detections": []
+    },
+    {
+     "t": 0.8,
+     "detections": []
+    },
+    {
+     "t": 0.9,
+     "detections": []
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": []
+    },
+    {
+     "t": 1.2,
+     "detections": []
+    },
+    {
+     "t": 1.3,
+     "detections": []
+    },
+    {
+     "t": 1.4,
+     "detections": []
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": []
+    },
+    {
+     "t": 1.7,
+     "detections": []
+    },
+    {
+     "t": 1.8,
+     "detections": []
+    },
+    {
+     "t": 1.9,
+     "detections": []
+    },
+    {
+     "t": 2.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.1,
+     "detections": []
+    },
+    {
+     "t": 2.2,
+     "detections": []
+    },
+    {
+     "t": 2.3,
+     "detections": []
+    },
+    {
+     "t": 2.4,
+     "detections": []
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "two_of_five_silent",
+   "description": "Seen twice in five frames: not confirmed.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": []
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": []
+    },
+    {
+     "t": 0.4,
+     "detections": []
+    },
+    {
+     "t": 0.5,
+     "detections": []
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "three_of_five_with_gaps",
+   "description": "Seen 3 times within 5 frames, with gaps: spoken on the 3rd sighting.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": []
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": []
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 4,
+     "t": 0.4,
+     "text": "Stairs ahead, close",
+     "priority": "urgent",
+     "key": "stairs:ahead"
+    }
+   ]
+  },
+  {
+   "id": "slow_motion_same_object",
+   "description": "An object moving 2% of the frame per frame stays one object.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.325,
+        0.4,
+        0.475,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.345,
+        0.4,
+        0.495,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.365,
+        0.4,
+        0.515,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.385,
+        0.4,
+        0.535,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.405,
+        0.4,
+        0.555,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.425,
+        0.4,
+        0.575,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Person ahead",
+     "priority": "normal",
+     "key": "person:ahead"
+    }
+   ]
+  },
+  {
+   "id": "jumping_boxes_not_confirmed",
+   "description": "Same class in a different place every frame (walls as poles): silent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.07,
+        0.4,
+        0.13,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.87,
+        0.4,
+        0.93,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.27,
+        0.4,
+        0.33,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.67,
+        0.4,
+        0.73,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.07,
+        0.4,
+        0.13,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "normal_repeat_after_4s",
+   "description": "Normal warning repeats after the 4 s cooldown.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.7,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Stairs, left",
+     "priority": "normal",
+     "key": "stairs:left"
+    },
+    {
+     "frame": 42,
+     "t": 4.2,
+     "text": "Stairs, left",
+     "priority": "normal",
+     "key": "stairs:left"
+    }
+   ]
+  },
+  {
+   "id": "urgent_repeat_after_2s",
+   "description": "Urgent (ahead + close) warning repeats after 2 s.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.4,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.5,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.6,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.7,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.8,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.9,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.4,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Stairs ahead, close",
+     "priority": "urgent",
+     "key": "stairs:ahead"
+    },
+    {
+     "frame": 22,
+     "t": 2.2,
+     "text": "Stairs ahead, close",
+     "priority": "urgent",
+     "key": "stairs:ahead"
+    },
+    {
+     "frame": 42,
+     "t": 4.2,
+     "text": "Stairs ahead, close",
+     "priority": "urgent",
+     "key": "stairs:ahead"
+    }
+   ]
+  },
+  {
+   "id": "cooldown_falls_through_to_next_object",
+   "description": "While the car is on cooldown, the next riskiest object is spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      },
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.05,
+        0.5,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Car ahead, close",
+     "priority": "urgent",
+     "key": "car:ahead"
+    },
+    {
+     "frame": 3,
+     "t": 0.3,
+     "text": "Person, left",
+     "priority": "normal",
+     "key": "person:left"
+    }
+   ]
+  },
+  {
+   "id": "direction_left",
+   "description": "Center left of 0.333: left.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Person, left",
+     "priority": "normal",
+     "key": "person:left"
+    }
+   ]
+  },
+  {
+   "id": "direction_right",
+   "description": "Center right of 0.667: right.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Person, right",
+     "priority": "normal",
+     "key": "person:right"
+    }
+   ]
+  },
+  {
+   "id": "boundary_center_equals_left_boundary",
+   "description": "center_x = (x1 + x2) / 2 compared with < left_boundary.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.233,
+        0.5,
+        0.433,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.233,
+        0.5,
+        0.433,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.233,
+        0.5,
+        0.433,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.8,
+       "box": [
+        0.233,
+        0.5,
+        0.433,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Person ahead",
+     "priority": "normal",
+     "key": "person:ahead"
+    }
+   ]
+  },
+  {
+   "id": "far_side_person_below_risk",
+   "description": "Far person to the side: risk 0.6 < 1, silent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "person",
+       "conf": 0.9,
+       "box": [
+        0.05,
+        0.6,
+        0.25,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "mid_ahead_not_close",
+   "description": "Mid distance ahead: normal priority, no 'close'.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "stairs",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Stairs ahead",
+     "priority": "normal",
+     "key": "stairs:ahead"
+    }
+   ]
+  },
+  {
+   "id": "car_below_speak_threshold",
+   "description": "Car at 0.44 < 0.45: silent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.44,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "car_above_speak_threshold",
+   "description": "Car at 0.46: spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.46,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.46,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.46,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.46,
+       "box": [
+        0.4,
+        0.35,
+        0.6,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Car ahead, close",
+     "priority": "urgent",
+     "key": "car:ahead"
+    }
+   ]
+  },
+  {
+   "id": "curb_threshold_two_objects",
+   "description": "Curb 0.19 (left) silent, curb 0.21 (right) spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "curb",
+       "conf": 0.19,
+       "box": [
+        0.05,
+        0.7,
+        0.35,
+        0.95
+       ]
+      },
+      {
+       "class": "curb",
+       "conf": 0.21,
+       "box": [
+        0.65,
+        0.7,
+        0.95,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "curb",
+       "conf": 0.19,
+       "box": [
+        0.05,
+        0.7,
+        0.35,
+        0.95
+       ]
+      },
+      {
+       "class": "curb",
+       "conf": 0.21,
+       "box": [
+        0.65,
+        0.7,
+        0.95,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "curb",
+       "conf": 0.19,
+       "box": [
+        0.05,
+        0.7,
+        0.35,
+        0.95
+       ]
+      },
+      {
+       "class": "curb",
+       "conf": 0.21,
+       "box": [
+        0.65,
+        0.7,
+        0.95,
+        0.95
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "curb",
+       "conf": 0.19,
+       "box": [
+        0.05,
+        0.7,
+        0.35,
+        0.95
+       ]
+      },
+      {
+       "class": "curb",
+       "conf": 0.21,
+       "box": [
+        0.65,
+        0.7,
+        0.95,
+        0.95
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Curb, right",
+     "priority": "normal",
+     "key": "curb:right"
+    }
+   ]
+  },
+  {
+   "id": "small_far_pole_near_horizon_silent",
+   "description": "Pole whose bottom is above 0.4 and 10% tall: too far, silent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.485,
+        0.2,
+        0.515,
+        0.3
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "tall_object_high_in_frame_spoken",
+   "description": "Bottom above 0.4 but taller than 15%: spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.775,
+        0.05,
+        0.825,
+        0.35
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.775,
+        0.05,
+        0.825,
+        0.35
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.775,
+        0.05,
+        0.825,
+        0.35
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.9,
+       "box": [
+        0.775,
+        0.05,
+        0.825,
+        0.35
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole, right",
+     "priority": "normal",
+     "key": "post:right"
+    }
+   ]
+  },
+  {
+   "id": "vehicle_needs_twenty_percent",
+   "description": "Car 18% tall (low in frame) silent until it grows to 30%.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.7,
+        0.6,
+        0.88
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.7,
+        0.6,
+        0.88
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.7,
+        0.6,
+        0.88
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.7,
+        0.6,
+        0.88
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "car",
+       "conf": 0.9,
+       "box": [
+        0.4,
+        0.6,
+        0.6,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 4,
+     "t": 0.4,
+     "text": "Car ahead",
+     "priority": "normal",
+     "key": "car:ahead"
+    }
+   ]
+  },
+  {
+   "id": "hazards_only_mutes_dog",
+   "description": "Hazards-only: the dog is silent, the stairs are spoken.",
+   "mute_non_hazards": true,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      },
+      {
+       "class": "stairs",
+       "conf": 0.9,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      },
+      {
+       "class": "stairs",
+       "conf": 0.9,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      },
+      {
+       "class": "stairs",
+       "conf": 0.9,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      },
+      {
+       "class": "stairs",
+       "conf": 0.9,
+       "box": [
+        0.7,
+        0.5,
+        0.9,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Stairs, right",
+     "priority": "normal",
+     "key": "stairs:right"
+    }
+   ]
+  },
+  {
+   "id": "all_objects_speaks_dog",
+   "description": "Hazards-only off: the dog is spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "dog",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Dog, left",
+     "priority": "normal",
+     "key": "dog:left"
+    }
+   ]
+  },
+  {
+   "id": "bench_side_low_risk_silent",
+   "description": "Bench (severity 1) at mid distance to the side: risk 0.6, silent.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "bench",
+       "conf": 0.9,
+       "box": [
+        0.1,
+        0.6,
+        0.3,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": []
+  },
+  {
+   "id": "post_confident_name_spoken",
+   "description": "Traffic cone at 0.8: its name is spoken.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_low_confidence_obstacle",
+   "description": "Traffic cone at 0.55 < 0.6: spoken as Obstacle, warning kept.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.55,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.55,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.55,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.55,
+       "box": [
+        0.1,
+        0.5,
+        0.3,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Obstacle, left",
+     "priority": "normal",
+     "key": "post:left"
+    }
+   ]
+  },
+  {
+   "id": "post_name_at_exactly_min_conf",
+   "description": "Pole at exactly 0.6: name kept (rule is < 0.6).",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.6,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.6,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.6,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.6,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole, right",
+     "priority": "normal",
+     "key": "post:right"
+    }
+   ]
+  },
+  {
+   "id": "post_two_classes_overlap_obstacle",
+   "description": "Cone 0.8 and fire hydrant 0.75 on one object: Obstacle.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      },
+      {
+       "class": "fire_hydrant",
+       "conf": 0.75,
+       "box": [
+        0.41,
+        0.5,
+        0.61,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      },
+      {
+       "class": "fire_hydrant",
+       "conf": 0.75,
+       "box": [
+        0.41,
+        0.5,
+        0.61,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      },
+      {
+       "class": "fire_hydrant",
+       "conf": 0.75,
+       "box": [
+        0.41,
+        0.5,
+        0.61,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      },
+      {
+       "class": "fire_hydrant",
+       "conf": 0.75,
+       "box": [
+        0.41,
+        0.5,
+        0.61,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Obstacle ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_overlap_with_weak_detection_ignored",
+   "description": "A bollard at 0.2 (below its 0.25 speak threshold) doesn't make the pole doubtful.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.2,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.2,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.2,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.2,
+       "box": [
+        0.47,
+        0.4,
+        0.53,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_flicker_between_classes_confirms",
+   "description": "Cone/hydrant alternate on one object: confirmed as one post, spoken once.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_group_shares_cooldown",
+   "description": "Pole spoken, then the same object at 0.5 (would be Obstacle): same key post:right, no repeat.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.4,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.7,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.8,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.9,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole, right",
+     "priority": "normal",
+     "key": "post:right"
+    }
+   ]
+  }
+ ]
+}
