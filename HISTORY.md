@@ -5,6 +5,21 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## chore: ignore Core ML packages anywhere in the repo (2026-11-21)
+
+- Why: VS Code showed ~10K uncommitted files. `git status` (including untracked
+  files) was already clean: `.venv/` (32,795 files), `.venv-export/` (28,010 files, ignored
+  since 6698c6e), `exports/`, `logs/`, `data/`, `.pytest_cache/`, `models/**/*.pt` and
+  `__pycache__/` are all ignored. The count was VS Code's stale Source Control view
+  from before `.venv-export/` was ignored.
+- `.gitignore`: added `*.mlpackage/` and `*.mlmodel`, so a Core ML export outside `exports/`
+  (e.g. in `models/`) can't be committed by accident.
+- Checked `clear-vision/`: not a git clone, but 2 tracked files from the first commit (the
+  original Colab notebook with user-research notes and embedded images, and a copy of
+  README.md). Left unchanged until the user decides.
+- Tested: `git status --porcelain -uall` empty before and after; `git check-ignore` on a
+  sample `models/x.mlpackage/`.
+
 ## feat: say "Obstacle" when a post changed class in the last 5 frames (2026-11-21)
 
 - Why: the per-frame naming rule spoke "Traffic cone" / "Fire hydrant" for one object
