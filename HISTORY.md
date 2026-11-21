@@ -5,6 +5,60 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: Flutter phone app (iPhone first, Android ready) with the Dart port of the rules (2026-11-21)
+
+- Why: run Clear Vision on the user's iPhone with the same rules as the Mac app.
+- `mobile_flutter/` (Flutter 3.50, Dart 3.14), org `com.clearvision`:
+  - Detection: `ultralytics_yolo` 0.7.2 `YOLOView`, model found by type in `assets/models/`
+    (`*.mlpackage.zip` on iOS, `*.tflite` on Android), task detect, plugin threshold =
+    lowest `detection.class_conf` (0.15), then per-class thresholds in Dart. `onResult`
+    feeds our rules; the plugin draws boxes only in the debug view.
+  - `lib/navigation/`: Dart port of `src/navigator.py` + `src/planner.py` (confirmation,
+    speak thresholds, speaking zone, cooldowns, post naming rule incl. class-change window),
+    plus pure health checks and vibration patterns. Stable sort by risk (Dart's sort isn't
+    stable); `pow(x, 0.5)` like Python's `** 0.5`.
+  - Speech: flutter_tts, urgent interrupts, normal only when quiet (counts as spoken only
+    then); iOS audio category `playback` (plays on silent, ducks music); Android navigation
+    audio attributes + focus. Vibration: pulses = side, timing = distance.
+  - UI: one full-screen high-contrast button (double-tap start/stop, long press = describe
+    scene, single tap = status, triple-tap = debug view), VoiceOver labels, hints and rotor
+    actions, settings icon; settings for voice speed, language (en; ko/uz packs later),
+    normal/silent, vibration, hazards only; wakelock while running; auto-start on load.
+  - Health: camera lost after `camera.stale_timeout` (1.5 s) + "Camera back" once; slow
+    below 8 FPS for 3 s (repeat <= every 60 s); battery 20% / 10%; model failure and
+    label mismatch spoken.
+  - iOS: iOS 15 minimum (Podfile), portrait only, NSCameraUsageDescription. Android:
+    CAMERA + VIBRATE permissions, TTS query, portrait, minSdk 24 / compileSdk 36.
+  - README: Mac setup, signing with a free Apple ID, Developer Mode, 7-day limit,
+    TestFlight needs the paid program, Android setup + APK, license (AGPL-3.0).
+- Config: new `mobile:` section in `configs/default.yaml`; new phone system phrases
+  (stopped, nothing_detected, slow, battery_low/critical, labels_mismatch).
+  `scripts/export_nav_config.py` now writes an `app` block (mobile + stale_timeout);
+  golden cases unchanged (35, identical outputs).
+- `scripts/sync_mobile_assets.py`: copies nav_config.json, labels.txt and a run's models
+  into the app (`--run v2` swaps the model, older files removed). Models gitignored.
+- `scripts/make_photo_video.py`: slideshow video from photos (the 48 s street video).
+- Notebook 07: no change needed. The plugin reads task/names from the embedded metadata;
+  checked our `.mlpackage` (task detect, 20 names, imgsz 512, NMS pipeline) against
+  UltralyticsYOLO 8.9.23 (handles NMS-pipeline models) and the Android decoder (own NMS,
+  normalized or pixel boxes).
+- Docs: spec section 8 (phone extras, new system messages), CLAUDE.md (phone workflow).
+- Tests:
+  - `flutter test` 55 passed: all 35 golden cases read from `tests/golden/`; checked that
+    making the left boundary inclusive fails exactly the boundary case. Also health,
+    vibration, scene description, config, planner, tap counting. `flutter analyze` clean.
+  - `pytest` 312 passed (7 new: sync script, app config copy, labels, photo video).
+  - `flutter build ios --release --no-codesign` built Runner.app (23.1 MB). The first
+    attempt stopped at a signing check; the identical second run succeeded.
+  - Reference: Mac replay of the street video (finetuned, MPS) gives 16 messages: manhole
+    x4, stairs x2, pothole x2, curb, Obstacle x2, fire hydrant x3, car, truck.
+- Not tested: install on the iPhone, FPS, speech on silent and the street-video and indoor
+  checks on the phone (no iPhone connected; signing needs the user's Apple ID). Android not
+  built: no Android SDK on this Mac, and the `.tflite` is only on Drive. Frame-to-audio
+  latency on the phone not measured yet.
+- Open: cones are still said as "Fire hydrant" when the model is confidently wrong (the naming
+  rule only catches doubt or flicker). Korean/Uzbek phrase files not written.
+
 ## chore: ignore Core ML packages anywhere in the repo (2026-11-21)
 
 - Why: VS Code showed ~10K uncommitted files. `git status` (including untracked

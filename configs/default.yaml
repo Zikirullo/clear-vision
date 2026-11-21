@@ -184,12 +184,35 @@ navigator:
       hazard_model_failed: Hazard detector failed. Detecting people and vehicles only.
       hazards_only: Hazards only
       all_objects: All objects
+      # phone app only (mobile_flutter/)
+      stopped: Clear Vision stopped
+      nothing_detected: Nothing detected
+      slow: Detection is slow
+      battery_low: "Battery low, {percent} percent"
+      battery_critical: "Battery critical, {percent} percent. Clear Vision will stop soon."
+      labels_mismatch: Warning. The model's class names do not match. Names may be wrong.
   spoken_names: {}           # class -> spoken text; default rule: traffic_cone -> "Traffic cone"
 
 app:
   camera_retry_s: 2.0        # seconds between camera reconnect attempts
   show_message_s: 2.0        # how long the last message stays on the debug window
   stats_interval_s: 5.0      # how often FPS and timings are logged
+
+mobile:                      # phone app (mobile_flutter/), exported to models/nav_config.json "app"
+  # camera.stale_timeout (above) is also the phone's "Camera lost" delay
+  slow_fps: 8                # below this many processed frames per second ...
+  slow_fps_seconds: 3.0      # ... for this long -> "Detection is slow"
+  slow_fps_repeat_s: 60.0    # say it again at most this often while still slow
+  battery_low_percent: 20
+  battery_critical_percent: 10
+  battery_check_s: 60.0
+  speech_rate: 0.5           # flutter_tts rate, 0.0-1.0 (0.5 = normal on iOS); user can change it
+  scene_max_objects: 3       # long press "what is in front": at most this many objects
+  debug_messages: 8          # spoken messages listed on the debug screen
+  haptics:                   # vibration per warning: pulses tell the side, timing tells the distance
+    pulses: {left: 1, right: 2, ahead: 3}
+    on_ms: {near: 60, mid: 90, far: 120}
+    off_ms: {near: 60, mid: 150, far: 300}
 
 speaker:
   rate: 220                  # words per minute

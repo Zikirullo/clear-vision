@@ -33,6 +33,13 @@ DEFAULT_PHRASES: dict[str, Any] = {
         "hazard_model_failed": "Hazard detector failed. Detecting people and vehicles only.",
         "hazards_only": "Hazards only",
         "all_objects": "All objects",
+        # phone app only (mobile_flutter/)
+        "stopped": "Clear Vision stopped",
+        "nothing_detected": "Nothing detected",
+        "slow": "Detection is slow",
+        "battery_low": "Battery low, {percent} percent",
+        "battery_critical": "Battery critical, {percent} percent. Clear Vision will stop soon.",
+        "labels_mismatch": "Warning. The model's class names do not match. Names may be wrong.",
     },
 }
 

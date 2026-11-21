@@ -185,6 +185,12 @@ System messages (`phrases.system`), spoken by the app outside the rules above:
 | `model_failed` | Detection model failed. Clear Vision cannot run. | urgent | no model could load |
 | `hazard_model_failed` | Hazard detector failed. Detecting people and vehicles only. | urgent | the hazard model failed, COCO fallback |
 | `hazards_only` / `all_objects` | Hazards only / All objects | normal | the hazards-only switch was toggled |
+| `stopped` | Clear Vision stopped | normal | phone: double-tap stopped detection |
+| `nothing_detected` | Nothing detected | urgent | phone: long press with no candidate in view |
+| `slow` | Detection is slow | normal | phone: fewer than `app.slow_fps` (8) frames/s for `app.slow_fps_seconds` (3 s); again at most every 60 s |
+| `battery_low` | Battery low, {percent} percent | normal | phone: at <= `app.battery_low_percent` (20) |
+| `battery_critical` | Battery critical, {percent} percent. … | urgent | phone: at <= `app.battery_critical_percent` (10) |
+| `labels_mismatch` | Warning. The model's class names do not match. … | urgent | phone: the model's embedded names differ from `labels.txt` |
 
 ## 8. What the live app adds (not in the golden cases)
 
@@ -195,6 +201,18 @@ System messages (`phrases.system`), spoken by the app outside the rules above:
   confidence (`nav_config.json` → `detection.class_conf`: 0.15 for curb, stairs,
   pothole, pole and manhole, 0.25 otherwise) decides what becomes a detection at all.
   The speak thresholds in 3a are higher.
+
+**Phone app extras** (`mobile_flutter/`, not in the golden cases; numbers in
+`nav_config.json` → `app`, from the `mobile:` section and `camera.stale_timeout`):
+- **Long press "what is in front":** the candidates of the latest frame, riskiest first
+  (stable sort), at most `app.scene_max_objects` (3), each phrased as in section 7 with the
+  naming rule, joined with ". ". No confirmation or cooldown. None: `nothing_detected`.
+- **Silent mode:** warnings vibrate instead of being spoken and still count as spoken
+  (cooldowns apply). System messages are always spoken.
+- **Vibration:** `app.haptics.pulses[direction]` pulses (left 1, right 2, ahead 3) of
+  `on_ms[proximity]` with `off_ms[proximity]` gaps (near 60/60 ms, mid 90/150, far 120/300).
+- **Detection thresholds:** the plugin runs with the lowest `detection.class_conf` (0.15);
+  the app then drops each detection below its own class's value before section 3.
 
 ## 9. Config keys (`navigator:` in `configs/default.yaml`, `navigator` in `nav_config.json`)
 

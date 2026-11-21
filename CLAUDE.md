@@ -20,6 +20,13 @@ short spoken messages (vibration later).
 **Local (MacBook, VS Code):** the real-time app in `src/`. This covers camera
 capture, ONNX Runtime inference, navigation logic, audio output and latency tests.
 
+**Phone (`mobile_flutter/`, Flutter, iPhone first, Android too):** the same rules ported to
+Dart in `mobile_flutter/lib/navigation/`, detection by the `ultralytics_yolo` plugin. Its
+tests replay `tests/golden/nav_cases.json` (`cd mobile_flutter && flutter test`). After changing
+the rules or config, also run `python scripts/sync_mobile_assets.py --config-only` (copies
+`nav_config.json` into the app) and port the change to Dart. `--run v2` swaps the model.
+Setup and signing: `mobile_flutter/README.md`.
+
 ## Git
 
 - Work on `develop`, which is GitHub's default branch. `master` is the stable branch.
@@ -93,6 +100,7 @@ python -m src.main --backend hybrid   # zero-training hazard detection
 python scripts/compare_detectors.py photos/   # FPS + counts per backend
 python scripts/replay.py clip.mp4 [--no-filter]   # every message the app would speak, with times
 pytest                       # run tests
+cd mobile_flutter && flutter test   # Dart port: golden cases + app logic
 ```
 
 Core ML (iPhone) export runs on the Mac in its own environment, `.venv-export` (coremltools

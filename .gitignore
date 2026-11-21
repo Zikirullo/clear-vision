@@ -22,3 +22,7 @@ exports/
 
 # Local check images (Wikimedia street photos etc.), not part of the repo
 data/
+
+# Flutter app models: copied from exports/<run>/mobile/ by scripts/sync_mobile_assets.py
+mobile_flutter/assets/models/*.zip
+mobile_flutter/assets/models/*.tflite
