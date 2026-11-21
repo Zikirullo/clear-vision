@@ -115,11 +115,31 @@ def cases() -> list[dict[str, Any]]:
         frames(repeat([cone, det("fire_hydrant", 0.75, cx=0.51, top=0.5, h=0.3)], 4)))
     add("post_overlap_with_weak_detection_ignored", "A bollard at 0.2 (below its 0.25 speak threshold) doesn't make the pole doubtful.",
         frames(repeat([det("pole", 0.8, cx=0.5, top=0.4, h=0.5, w=0.06), det("bollard", 0.2, cx=0.5, top=0.4, h=0.5, w=0.06)], 4)))
-    add("post_flicker_between_classes_confirms", "Cone/hydrant alternate on one object: confirmed as one post, spoken once.",
+    add("post_flicker_between_classes_obstacle", "Cone/hydrant alternate on one object at 0.8: confirmed as one post, "
+        "spoken once as Obstacle (the class changed within the last 5 frames).",
         frames([[det("traffic_cone" if i % 2 == 0 else "fire_hydrant", 0.8, top=0.5, h=0.3)] for i in range(12)]))
     add("post_group_shares_cooldown", "Pole spoken, then the same object at 0.5 (would be Obstacle): same key post:right, no repeat.",
         frames(repeat([det("pole", 0.8, cx=0.8, top=0.5, h=0.4, w=0.05)], 5)
                + repeat([det("pole", 0.5, cx=0.8, top=0.5, h=0.4, w=0.05)], 15)))
+    # --- naming rule: class changes over the last name_history_frames (5) frames
+    hydrant = det("fire_hydrant", 0.8, cx=0.5, top=0.5, h=0.3)
+    add("post_class_change_four_frames_back_obstacle", "Steady cone, one hydrant frame 4 frames before the cooldown "
+        "ends (inside the 5-frame window): the repeat is Obstacle.",
+        frames([[hydrant] if i == 38 else [cone] for i in range(50)]))
+    add("post_class_change_five_frames_back_forgotten", "Same, but the hydrant frame is 5 frames back (outside the "
+        "window): the repeat keeps the name.",
+        frames([[hydrant] if i == 37 else [cone] for i in range(50)]))
+    add("post_two_different_posts_keep_names", "A pole on the left and a bollard on the right are different objects: "
+        "both keep their names.",
+        frames(repeat([det("pole", 0.8, cx=0.2, top=0.5, h=0.4, w=0.05),
+                       det("bollard", 0.8, cx=0.8, top=0.5, h=0.4, w=0.05)], 6)))
+    add("post_weak_other_class_in_history_ignored", "A hydrant at 0.2 (below its speak threshold) before a steady cone "
+        "doesn't count as a class change.",
+        frames([[det("fire_hydrant", 0.2, cx=0.5, top=0.5, h=0.3)]] + repeat([cone], 5)))
+    add("post_same_class_low_then_high_conf_keeps_name", "A pole at 0.5 then 0.8: same class name, so only the "
+        "current confidence matters.",
+        frames(repeat([det("pole", 0.5, cx=0.8, top=0.5, h=0.4, w=0.05)], 2)
+               + repeat([det("pole", 0.8, cx=0.8, top=0.5, h=0.4, w=0.05)], 2)))
     return c
 
 

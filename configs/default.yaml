@@ -166,6 +166,8 @@ navigator:
     post: [traffic_cone, bollard, fire_hydrant, pole]
   name_min_conf: 0.6         # group member below this confidence -> "Obstacle"
   name_overlap_iou: 0.5      # two different group classes overlapping this much -> "Obstacle"
+  name_history_frames: 5     # same object had another group class in the last 5 frames
+                             # (current included) -> "Obstacle"; 1 turns this check off
   # Spoken text (also exported to models/nav_config.json for the phone app)
   phrases:
     ahead: "{name} ahead"

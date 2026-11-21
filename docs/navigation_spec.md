@@ -8,7 +8,7 @@ code is `src/navigator.py` (pure functions) and `src/planner.py` (per-session st
 from `models/nav_config.json`, which is generated from `configs/default.yaml` by
 `scripts/export_nav_config.py`. Values quoted below are the current ones, for reading.
 
-**Conformance:** `tests/golden/nav_cases.json` holds 30 input sequences with the exact
+**Conformance:** `tests/golden/nav_cases.json` holds 35 input sequences with the exact
 messages Python produces. An implementation conforms when it reproduces all of them:
 same frames, texts, priorities and cooldown keys. Python checks itself against that file
 in `tests/test_nav_golden.py`.
@@ -31,7 +31,7 @@ State kept across frames (one session):
 
 | state | meaning |
 |---|---|
-| `history` | the **candidates** (see 3a) of the last `window_frames - 1` frames, oldest first |
+| `history` | the **candidates** (see 3a) of the last `max(window_frames, name_history_frames) - 1` frames (currently 4), oldest first |
 | `last_spoken` | map cooldown key → time the message with that key was last spoken |
 | `mute_non_hazards` | the hazards-only switch (starts at the config value; key `m` toggles it in the app) |
 
@@ -84,10 +84,10 @@ Weaker detections are ignored for everything below. The live app still draws the
 3. **Confirmed** (section 4).
 
 **c. Choose the message** from the speakable detections (section 5). The candidates of
-this frame are the context for the naming rule (section 6).
+this frame and the history are the context for the naming rule (section 6).
 
 **d. Update history:** append this frame's candidates, and keep only the last
-`window_frames - 1` (4) frames.
+`max(window_frames, name_history_frames) - 1` (4) frames.
 
 **e. If a message was chosen and spoken**, set `last_spoken[message.key] = t`. The golden
 cases count every chosen message as spoken (see section 8 for the live app).
@@ -100,15 +100,16 @@ cases count every chosen message as spoken (see section 8 for the live app).
 - **close centers:** `sqrt((a.center_x - b.center_x)² + (a.center_y - b.center_y)²) <= confirm_center_dist` (0.15)
 - **overlap:** `IoU(a, b) >= confirm_iou` (0.3)
 
-`is_confirmed(det)`:
+`track(det, n)`: the object's boxes over the last `n` frames, current one included:
 ```
-count = 1; last = det
-for frame in the last (window_frames - 1) history frames, newest first:
+track = [det]; last = det
+for frame in the last (n - 1) history frames, newest first:
     match = the first detection d in frame (list order) with same_object(last, d)
-    if match: count += 1; last = match       # a moving object stays one object
-confirmed = count >= confirm_frames          # 3 of window_frames = 5
+    if match: track.append(match); last = match   # a moving object stays one object
 ```
 Frames without a match don't break the chain; they just don't count.
+
+`is_confirmed(det)` = `len(track(det, window_frames)) >= confirm_frames` (3 of 5).
 
 ## 5. Choosing the message (at most one per frame)
 
@@ -127,7 +128,7 @@ for det in that order:
     key = group(det.class) + ":" + direction          # e.g. "post:left", "car:ahead"
     wait = urgent_cooldown (2.0 s) if urgent else cooldown (4.0 s)
     if key in last_spoken and t - last_spoken[key] < wait: continue   # next riskiest object
-    return Message(text, priority, key)
+    return Message(text, priority, key)       # text: section 7, name per section 6
 ```
 The cooldown key ignores proximity and the spoken name: "Pole, right", then "Obstacle,
 right, close" for the same post on the same side within 4 s is not repeated.
@@ -138,18 +139,24 @@ The v1 model sometimes calls traffic cones and bollards "fire hydrant" (2026-11-
 Classes that get confused form a **name group** (`name_groups`). Currently:
 `post: [traffic_cone, bollard, fire_hydrant, pole]`.
 
-A group member is spoken as `phrases.unknown` ("Obstacle") when **either** holds:
-- its `conf < name_min_conf` (0.6); exactly 0.6 keeps the name
-- another **candidate of the same frame** with a **different class of the same group**
-  overlaps it with `IoU >= name_overlap_iou` (0.5)
+A group member is spoken as `phrases.unknown` ("Obstacle") when **any** of these holds:
+1. its `conf < name_min_conf` (0.6); exactly 0.6 keeps the name
+2. another **candidate of the same frame** with a **different class of the same group**
+   overlaps it with `IoU >= name_overlap_iou` (0.5)
+3. **the class changed recently:** the boxes of `track(det, name_history_frames)`
+   (section 4; currently 5 frames, the current one included) carry more than one class
+   name, even if the current confidence is >= 0.6. Only candidates count, so a weak
+   detection below its speak threshold doesn't. A different post elsewhere in the frame
+   isn't the same object and doesn't count either. `name_history_frames: 1` turns this off.
 
 **The warning itself is never dropped because of a name doubt.** Direction, distance,
 priority and cooldown key stay the same; only the name changes. The group also counts
 as one object for confirmation (section 4) and cooldowns (section 5).
 
-The rule looks at one frame only. If the class flips between frames (cone, then hydrant,
-then cone) with confidence >= 0.6, the current frame's class name is spoken (golden case
-`post_flicker_between_classes_confirms`).
+Example: cone, hydrant, cone on one object at 0.8 is confirmed as one post and spoken as
+"Obstacle ahead" (golden case `post_flicker_between_classes_obstacle`). A hydrant frame 4
+frames back still makes the warning "Obstacle"; 5 frames back it is forgotten (golden cases
+`post_class_change_four_frames_back_obstacle` and `..._five_frames_back_forgotten`).
 
 Classes outside every group always use their own name.
 
@@ -207,6 +214,7 @@ System messages (`phrases.system`), spoken by the app outside the rules above:
 | `vehicles`, `vehicle_min_height` | car, bus, truck, motorcycle; 0.20 | 3b zone |
 | `mute_non_hazards`, `hazard_classes` | false; 14 classes | 3b |
 | `name_groups`, `name_min_conf`, `name_overlap_iou` | post group; 0.6; 0.5 | 6 |
+| `name_history_frames` | 5 | 6 (and history length, 1) |
 | `phrases`, `spoken_names` | templates; {} | 7 |
 
 ## 10. Changing a rule
@@ -224,4 +232,6 @@ System messages (`phrases.system`), spoken by the app outside the rules above:
   distance and IoU (section 4).
 - **Distance comes from box height,** which suits upright objects; flat hazards (curb,
   pothole, manhole, crosswalk) look "far" until close.
-- **The naming rule is per frame** (section 6).
+- **The class-change check follows one object** with the same matching as confirmation
+  (section 4), so two posts that touch can be mixed up and spoken as "Obstacle". That
+  errs on the side of a warning without a name.

@@ -5,6 +5,38 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: say "Obstacle" when a post changed class in the last 5 frames (2026-11-21)
+
+- Why: the per-frame naming rule spoke "Traffic cone" / "Fire hydrant" for one object
+  whose class flipped between frames at confidence >= 0.6. A name the model keeps
+  changing is not trustworthy.
+- New rule (third condition of the naming rule): a member of the post group
+  (traffic_cone, bollard, fire_hydrant, pole) is spoken as "Obstacle" if the same object
+  had more than one class name in the last `name_history_frames` frames, current one
+  included. The object is followed with the same matching as the 3-of-5 confirmation
+  (new `object_track()`, which `is_confirmed()` now uses too). Only candidates (above
+  the speak threshold) count. The warning itself, direction, priority and cooldown key
+  are unchanged.
+- `configs/default.yaml`: `navigator.name_history_frames: 5` (1 turns the check off).
+  `SpeechPlanner` keeps `max(window_frames, name_history_frames) - 1` frames of history;
+  confirmation still uses only the last `window_frames - 1`.
+- Regenerated `models/nav_config.json` (adds `name_history_frames`) and
+  `tests/golden/nav_cases.json`: 35 cases (was 30). The only changed expectation is the
+  flicker case, renamed `post_flicker_between_classes_obstacle` ("Traffic cone ahead" ->
+  "Obstacle ahead"); checked that every other case's output is identical. New cases:
+  hydrant 4 frames back -> Obstacle, 5 frames back -> name kept (exact window boundary),
+  two different posts keep their names, a weak hydrant in history is ignored, a pole at
+  0.5 then 0.8 keeps its name.
+- `docs/navigation_spec.md`: `track()` definition in section 4, third naming condition
+  in section 6, history length, config table, known limits.
+- Tests: `pytest` 305 passed (was 296): 5 new golden cases, 4 unit tests in
+  `tests/test_speech_filter.py` (window boundary, other objects / non-group classes,
+  `name_history_frames: 1`, planner history length).
+- Latency: `SpeechPlanner.update` measured at 0.68 ms per frame with 20 detections
+  (synthetic, 2000 frames); negligible against the 300 ms budget.
+- Not tested: a live webcam run with real flickering cones. Open: two touching posts can
+  be merged into one track and spoken as "Obstacle" (errs toward warning).
+
 ## feat: portable navigation rules (spec, nav_config.json, golden cases) (2026-11-21)
 
 - Why: before building the phone app, the app and Python must use identical rules and

@@ -1,6 +1,7 @@
 """Per-session speech state around the pure navigator functions.
 
-Holds the last few frames' candidate detections (for confirmation), when each
+Holds the last few frames' candidate detections (for confirmation and the naming
+rule's class-change check), when each
 message was last spoken (for cooldowns) and the hazards-only toggle. Used by
 main.py and scripts/replay.py so both decide exactly the same way.
 """
@@ -18,7 +19,9 @@ class SpeechPlanner:
     def __init__(self, cfg: NavigatorConfig) -> None:
         self.cfg = cfg
         self.mute_non_hazards = cfg.mute_non_hazards
-        self.history: deque[tuple[Detection, ...]] = deque(maxlen=max(1, cfg.window_frames - 1))
+        self.history: deque[tuple[Detection, ...]] = deque(
+            maxlen=max(1, cfg.window_frames - 1, cfg.name_history_frames - 1)
+        )
         self.last_spoken: dict[str, float] = {}
 
     def update(self, detections: Iterable[Detection], now: float) -> SpeechPlan:

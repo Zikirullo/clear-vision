@@ -34,11 +34,12 @@ def test_nav_config_has_the_naming_rule() -> None:
     nav = json.loads(NAV_JSON.read_text())["navigator"]
     assert nav["name_groups"] == {"post": ["traffic_cone", "bollard", "fire_hydrant", "pole"]}
     assert nav["name_min_conf"] == 0.6 and nav["phrases"]["unknown"] == "Obstacle"
+    assert nav["name_history_frames"] == 5
 
 
 def test_golden_file_shape() -> None:
     cases = GOLDEN["cases"]
-    assert len(cases) == 30 and len({c["id"] for c in cases}) == 30
+    assert len(cases) == 35 and len({c["id"] for c in cases}) == 35
     texts = [e["text"] for c in cases for e in c["expected"]]
     assert any(t.startswith("Obstacle") for t in texts), "the naming rule must be covered"
     assert any(e["priority"] == "urgent" for c in cases for e in c["expected"])

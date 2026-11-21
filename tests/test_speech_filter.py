@@ -14,7 +14,10 @@ import pytest
 import yaml
 
 from src.detection import Detection
-from src.navigator import NavigatorConfig, in_speaking_zone, is_confirmed, same_object, speak_threshold
+from src.navigator import (
+    NavigatorConfig, in_speaking_zone, is_confirmed, name_changed_recently, name_is_doubtful, same_object,
+    speak_threshold,
+)
 from src.planner import SpeechPlanner
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -100,6 +103,39 @@ def test_post_group_classes_confirm_each_other(cfg: NavigatorConfig) -> None:
     cone, hydrant = box("traffic_cone", 0.9), box("fire_hydrant", 0.9)
     assert same_object(cone, hydrant, cfg)
     assert is_confirmed(cone, [[hydrant], [cone]], cfg)
+
+
+def test_name_changed_recently_within_the_window(cfg: NavigatorConfig) -> None:
+    cone, hydrant = box("traffic_cone", 0.9), box("fire_hydrant", 0.9)
+    assert name_changed_recently(cone, [[hydrant], [cone], [cone], [cone]], cfg)  # 4 frames back: inside
+    assert not name_changed_recently(cone, [[hydrant], [cone], [cone], [cone], [cone]], cfg)  # 5 back: outside
+    assert name_is_doubtful(cone, [cone], cfg, history=[[hydrant], [cone]])
+    assert not name_is_doubtful(cone, [cone], cfg, history=[[cone], [cone]])
+
+
+def test_name_change_ignores_other_objects_and_other_groups(cfg: NavigatorConfig) -> None:
+    cone = box("traffic_cone", 0.9, cx=0.2, w=0.1)
+    far_hydrant = box("fire_hydrant", 0.9, cx=0.8, w=0.1)  # a different post elsewhere
+    assert not name_changed_recently(cone, [[far_hydrant], [far_hydrant]], cfg)
+    car, truck = box("car", 0.9), box("truck", 0.9)  # not a name group
+    assert not name_is_doubtful(car, [car], cfg, history=[[truck], [truck]])
+
+
+def test_name_history_one_frame_turns_the_check_off(cfg: NavigatorConfig) -> None:
+    import dataclasses
+    off = dataclasses.replace(cfg, name_history_frames=1)
+    cone, hydrant = box("traffic_cone", 0.9), box("fire_hydrant", 0.9)
+    assert not name_changed_recently(cone, [[hydrant], [hydrant]], off)
+
+
+def test_planner_keeps_enough_history_for_the_name_window(cfg: NavigatorConfig) -> None:
+    import dataclasses
+    assert SpeechPlanner(cfg).history.maxlen == 4
+    assert SpeechPlanner(dataclasses.replace(cfg, name_history_frames=8)).history.maxlen == 7
+    # Confirmation still uses only the last window_frames - 1 frames.
+    longer = dataclasses.replace(cfg, name_history_frames=8)
+    a = box()
+    assert not is_confirmed(a, [[a], [a], [], [], [], []], longer)
 
 
 def test_only_the_last_window_counts(cfg: NavigatorConfig) -> None:

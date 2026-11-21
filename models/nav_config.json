@@ -122,6 +122,7 @@
     },
     "name_min_conf": 0.6,
     "name_overlap_iou": 0.5,
+    "name_history_frames": 5,
     "phrases": {
       "ahead": "{name} ahead",
       "close_suffix": ", close",

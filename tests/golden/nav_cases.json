@@ -4304,8 +4304,8 @@
    ]
   },
   {
-   "id": "post_flicker_between_classes_confirms",
-   "description": "Cone/hydrant alternate on one object: confirmed as one post, spoken once.",
+   "id": "post_flicker_between_classes_obstacle",
+   "description": "Cone/hydrant alternate on one object at 0.8: confirmed as one post, spoken once as Obstacle (the class changed within the last 5 frames).",
    "mute_non_hazards": false,
    "frames": [
     {
@@ -4493,7 +4493,7 @@
     {
      "frame": 2,
      "t": 0.2,
-     "text": "Traffic cone ahead",
+     "text": "Obstacle ahead",
      "priority": "normal",
      "key": "post:ahead"
     }
@@ -4795,6 +4795,1907 @@
       {
        "class": "pole",
        "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole, right",
+     "priority": "normal",
+     "key": "post:right"
+    }
+   ]
+  },
+  {
+   "id": "post_class_change_four_frames_back_obstacle",
+   "description": "Steady cone, one hydrant frame 4 frames before the cooldown ends (inside the 5-frame window): the repeat is Obstacle.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.8,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    },
+    {
+     "frame": 42,
+     "t": 4.2,
+     "text": "Obstacle ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_class_change_five_frames_back_forgotten",
+   "description": "Same, but the hydrant frame is 5 frames back (outside the window): the repeat keeps the name.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 1.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 2.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.7,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 3.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.0,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.6,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.7,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.8,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 4.9,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    },
+    {
+     "frame": 42,
+     "t": 4.2,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_two_different_posts_keep_names",
+   "description": "A pole on the left and a bollard on the right are different objects: both keep their names.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.175,
+        0.5,
+        0.225,
+        0.9
+       ]
+      },
+      {
+       "class": "bollard",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 2,
+     "t": 0.2,
+     "text": "Pole, left",
+     "priority": "normal",
+     "key": "post:left"
+    },
+    {
+     "frame": 3,
+     "t": 0.3,
+     "text": "Bollard, right",
+     "priority": "normal",
+     "key": "post:right"
+    }
+   ]
+  },
+  {
+   "id": "post_weak_other_class_in_history_ignored",
+   "description": "A hydrant at 0.2 (below its speak threshold) before a steady cone doesn't count as a class change.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "fire_hydrant",
+       "conf": 0.2,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.4,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.5,
+     "detections": [
+      {
+       "class": "traffic_cone",
+       "conf": 0.8,
+       "box": [
+        0.4,
+        0.5,
+        0.6,
+        0.8
+       ]
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "frame": 3,
+     "t": 0.3,
+     "text": "Traffic cone ahead",
+     "priority": "normal",
+     "key": "post:ahead"
+    }
+   ]
+  },
+  {
+   "id": "post_same_class_low_then_high_conf_keeps_name",
+   "description": "A pole at 0.5 then 0.8: same class name, so only the current confidence matters.",
+   "mute_non_hazards": false,
+   "frames": [
+    {
+     "t": 0.0,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.1,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.5,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.2,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
+       "box": [
+        0.775,
+        0.5,
+        0.825,
+        0.9
+       ]
+      }
+     ]
+    },
+    {
+     "t": 0.3,
+     "detections": [
+      {
+       "class": "pole",
+       "conf": 0.8,
        "box": [
         0.775,
         0.5,

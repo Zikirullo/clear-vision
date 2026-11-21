@@ -77,6 +77,8 @@ class NavigatorConfig:
     )
     name_min_conf: float = 0.6  # below this confidence a group member is spoken as "Obstacle"
     name_overlap_iou: float = 0.5  # two different group classes on one object -> "Obstacle"
+    name_history_frames: int = 5  # the same object named differently in the last this many frames
+    # (current one included) -> "Obstacle"; 1 turns the check off
     phrases: Mapping[str, Any] = field(default_factory=lambda: dict(DEFAULT_PHRASES))
     spoken_names: Mapping[str, str] = field(default_factory=dict)  # class -> text; default: "traffic_cone" -> "Traffic cone"
 
@@ -156,21 +158,31 @@ def display_name(class_name: str, cfg: NavigatorConfig = DEFAULT_CONFIG) -> str:
     return cfg.spoken_names.get(class_name) or class_name.replace("_", " ").capitalize()
 
 
-def name_is_doubtful(det: Detection, context: Iterable[Detection], cfg: NavigatorConfig = DEFAULT_CONFIG) -> bool:
-    """True if a group member should be spoken as "Obstacle": its confidence is below
-    `name_min_conf`, or a different class of the same group overlaps it (IoU >=
-    `name_overlap_iou`), i.e. the model can't decide what the object is."""
+def name_is_doubtful(
+    det: Detection,
+    context: Iterable[Detection],
+    cfg: NavigatorConfig = DEFAULT_CONFIG,
+    history: Sequence[Sequence[Detection]] = (),
+) -> bool:
+    """True if a group member should be spoken as "Obstacle", i.e. the model can't decide
+    what the object is:
+    - its confidence is below `name_min_conf`, or
+    - a different class of the same group overlaps it in this frame (IoU >= `name_overlap_iou`), or
+    - the same object had another class name in the last `name_history_frames` frames
+      (`history`: earlier frames' candidates, oldest first)."""
     group = class_group(det.class_name, cfg)
     if group == det.class_name:  # not in a name group
         return False
     if det.confidence < cfg.name_min_conf:
         return True
-    return any(
+    if any(
         other.class_name != det.class_name
         and class_group(other.class_name, cfg) == group
         and box_iou(det, other) >= cfg.name_overlap_iou
         for other in context
-    )
+    ):
+        return True
+    return name_changed_recently(det, history, cfg)
 
 
 def build_phrase(
@@ -215,6 +227,7 @@ def choose_message(
     last_spoken: Mapping[str, float],
     cfg: NavigatorConfig = DEFAULT_CONFIG,
     context: Iterable[Detection] | None = None,
+    history: Sequence[Sequence[Detection]] = (),
 ) -> Message | None:
     """Pick the single most dangerous object worth announcing, if any.
 
@@ -226,7 +239,8 @@ def choose_message(
     message is actually spoken, the caller records `last_spoken[msg.key] = now`.
 
     Ties in risk keep the input order (stable sort). `context` (default: `detections`) is
-    every confident detection of the frame, used to spot two group classes on one object.
+    every confident detection of the frame, used to spot two group classes on one object;
+    `history` (earlier frames' candidates) spots an object whose class name changed.
     """
     detections = list(detections)
     context = detections if context is None else list(context)
@@ -244,7 +258,7 @@ def choose_message(
         key = message_key(det, cfg)
         if is_on_cooldown(key, priority, now, last_spoken, cfg):
             continue
-        name = cfg.phrases["unknown"] if name_is_doubtful(det, context, cfg) else None
+        name = cfg.phrases["unknown"] if name_is_doubtful(det, context, cfg, history) else None
         return Message(text=build_phrase(det.class_name, where, how_close, cfg, name), priority=priority, key=key)
     return None
 
@@ -295,13 +309,34 @@ def is_confirmed(
     matched box (so a slowly moving object stays the same object). Frames without a
     match don't break the chain; they just don't count.
     """
-    count, last = 1, det
-    previous = list(history)[-(cfg.window_frames - 1):] if cfg.window_frames > 1 else []
+    return len(object_track(det, history, cfg.window_frames, cfg)) >= cfg.confirm_frames
+
+
+def object_track(
+    det: Detection, history: Sequence[Sequence[Detection]], frames: int, cfg: NavigatorConfig = DEFAULT_CONFIG
+) -> list[Detection]:
+    """`det` and its matches in the last `frames - 1` history frames, newest first.
+
+    Walking back from the current frame, each frame may contribute the first box (list
+    order) that is `same_object` as the last matched box, so a moving object stays one
+    object. Frames without a match are skipped."""
+    track, last = [det], det
+    previous = list(history)[-(frames - 1):] if frames > 1 else []
     for frame in reversed(previous):
         match = next((d for d in frame if same_object(last, d, cfg)), None)
         if match is not None:
-            count, last = count + 1, match
-    return count >= cfg.confirm_frames
+            track.append(match)
+            last = match
+    return track
+
+
+def name_changed_recently(
+    det: Detection, history: Sequence[Sequence[Detection]], cfg: NavigatorConfig = DEFAULT_CONFIG
+) -> bool:
+    """True if the same object (see `object_track`) carried more than one class name in the
+    last `name_history_frames` frames, current frame included (cone, then hydrant)."""
+    track = object_track(det, history, cfg.name_history_frames, cfg)
+    return len({d.class_name for d in track}) > 1
 
 
 @dataclass(frozen=True)
@@ -332,4 +367,4 @@ def plan_speech(
         d for d in candidates
         if in_speaking_zone(d, cfg) and allowed_class(d, mute, cfg) and is_confirmed(d, history, cfg)
     )
-    return SpeechPlan(candidates, speakable, choose_message(speakable, now, last_spoken, cfg, context=candidates))
+    return SpeechPlan(candidates, speakable, choose_message(speakable, now, last_spoken, cfg, context=candidates, history=history))
