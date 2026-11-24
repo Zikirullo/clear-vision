@@ -16,7 +16,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Iterator, Sequence
 
 import yaml
 
@@ -293,29 +293,137 @@ def write_negatives(images: Sequence[Path], dest: Path) -> int:
     return len(images)
 
 
-def download_negatives(raw: Path, n: int = 3000, staging: Path = STAGING, seed: int = 51) -> int:
+# Detections that disqualify a negative: budget_v1 sees one of our hazards in it, so it may
+# really contain one (unlabeled stairs or a curb would teach "ignore it"), or it is exactly
+# the false alarm to learn from, but then it needs a check, not a "nothing here" label.
+NEGATIVE_HAZARDS = ("stairs", "curb", "pole", "pothole", "manhole", "bollard", "barrier", "traffic_cone")
+SCREEN_CONF = 0.25
+SCREEN_IMGSZ = 512
+COCO_TRAIN_IMAGES = 118_287
+
+# (class name, confidence, x1, y1, x2, y2), boxes normalized to the image.
+ScreenDetection = tuple[str, float, float, float, float, float]
+ScreenFn = Callable[[Sequence[Path]], "dict[Path, list[ScreenDetection]]"]
+
+
+def hazard_hits(detections: Sequence[ScreenDetection], conf: float = SCREEN_CONF,
+                hazards: Sequence[str] = NEGATIVE_HAZARDS) -> list[ScreenDetection]:
+    """The detections that disqualify a negative: a hazard class at `conf` or higher."""
+    return [d for d in detections if d[0] in hazards and d[1] >= conf]
+
+
+def collect_negatives(
+    batches: Iterable[Sequence[tuple[str, Iterable[str]]]], n: int, screen: ScreenFn | None,
+    conf: float = SCREEN_CONF, seed: int = 51,
+) -> tuple[list[Path], dict[Path, list[ScreenDetection]], bool]:
+    """Pick indoor images without our classes (pick_negatives rules) from growing candidate
+    batches, screen each new one with `screen` (a detector; None = no screening) and drop
+    those with a hazard detection, until `n` remain or the batches run out.
+
+    batches: lists of (image path, COCO class names); later batches may repeat earlier
+    images (they are screened once). Returns (kept: n at most, sorted; dropped: path ->
+    its hazard detections; enough: True if n were found)."""
+    seen: set[str] = set()
+    clean: list[Path] = []
+    dropped: dict[Path, list[ScreenDetection]] = {}
+    for batch in batches:
+        eligible = pick_negatives(batch, COCO_TRAIN_IMAGES, seed)  # every eligible image, sorted
+        new = [p for p in eligible if p not in seen]
+        seen.update(new)
+        paths = [Path(p) for p in new]
+        found = screen(paths) if screen and paths else {}
+        for path in paths:
+            hits = hazard_hits(found.get(path, []), conf)
+            if hits:
+                dropped[path] = hits
+            else:
+                clean.append(path)
+        logger.info("  negatives: %d candidates screened, %d clean, %d dropped", len(seen), len(clean), len(dropped))
+        if len(clean) >= n:
+            break
+    kept = sorted(random.Random(seed).sample(clean, n)) if len(clean) > n else sorted(clean)
+    return kept, dropped, len(clean) >= n
+
+
+def make_yolo_screen(model_path: Path | str, imgsz: int = SCREEN_IMGSZ, conf: float = SCREEN_CONF,
+                     batch: int = 32) -> ScreenFn:
+    """A screen for collect_negatives(): runs an Ultralytics model (e.g. budget_v1) on the images."""
+    from ultralytics import YOLO
+
+    model = YOLO(str(model_path))
+    names = model.names
+
+    def screen(paths: Sequence[Path]) -> dict[Path, list[ScreenDetection]]:
+        out: dict[Path, list[ScreenDetection]] = {}
+        for start in range(0, len(paths), batch):
+            chunk = paths[start:start + batch]
+            for path, res in zip(chunk, model.predict([str(p) for p in chunk], conf=conf, imgsz=imgsz, verbose=False)):
+                b = res.boxes
+                out[path] = [(names[int(c)], float(s), *map(float, box))
+                             for box, s, c in zip(b.xyxyn.tolist(), b.conf.tolist(), b.cls.tolist())]
+        return out
+
+    return screen
+
+
+def draw_hits(path: Path, hits: Sequence[ScreenDetection]) -> Any:
+    """RGB image with the disqualifying detections drawn in red (for the notebook)."""
+    import cv2
+
+    image = cv2.imread(str(path))
+    h, w = image.shape[:2]
+    for cls, score, x1, y1, x2, y2 in hits:
+        p1, p2 = (int(x1 * w), int(y1 * h)), (int(x2 * w), int(y2 * h))
+        cv2.rectangle(image, p1, p2, (0, 0, 255), max(2, w // 300))
+        cv2.putText(image, f"{cls} {score:.2f}", (p1[0], max(15, p1[1] - 5)), cv2.FONT_HERSHEY_SIMPLEX,
+                    max(0.5, w / 1200), (0, 0, 255), 2)
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
+def download_negatives(
+    raw: Path, n: int = 3000, staging: Path = STAGING, seed: int = 51, screen: ScreenFn | None = None,
+    screen_name: str = "", conf: float = SCREEN_CONF,
+) -> dict[str, Any]:
     """~n indoor COCO-2017 train images without our classes into raw/negatives/ (FiftyOne zoo;
-    only the needed images are downloaded). Skipped if already done. Returns images written."""
+    only the needed images are downloaded), screened with `screen` (budget_v1 in notebook 02):
+    images where it detects a NEGATIVE_HAZARDS class at `conf` are dropped and replaced by
+    more COCO images (4x, 8x, 16x ... n candidates) until n remain or COCO has no more.
+
+    Skipped if already done with the same screen. Returns {"kept", "dropped" (path -> hits),
+    "enough"}; empty lists when skipped."""
     dest = raw / NEGATIVES
-    if skip_if_done(dest):
-        return 0
+    if is_done(dest) and json.loads((dest / DONE).read_text()).get("screened_with") == screen_name:
+        logger.info("[%s] already downloaded, skipping", dest.name)
+        return {"kept": [], "dropped": {}, "enough": True}
     import fiftyone.zoo as foz
 
     t0 = time.time()
-    candidates = foz.load_zoo_dataset(
-        "coco-2017", split="train", label_types=["detections"], classes=list(INDOOR_CLASSES),
-        max_samples=n * 4, shuffle=True, seed=seed, dataset_name="coco-negatives", drop_existing_dataset=True,
-    )
-    labels = {
-        s.filepath: [d.label for d in (s.ground_truth.detections if s.ground_truth else [])]
-        for s in candidates
-    }
-    picked = pick_negatives(labels.items(), n, seed)
-    if len(picked) < n:
-        logger.warning("  only %d indoor images without our classes (wanted %d)", len(picked), n)
+
+    def batches() -> Iterator[list[tuple[str, list[str]]]]:
+        size, last = n * 4, -1
+        while size <= COCO_TRAIN_IMAGES * 2:
+            ds = foz.load_zoo_dataset(
+                "coco-2017", split="train", label_types=["detections"], classes=list(INDOOR_CLASSES),
+                max_samples=size, shuffle=True, seed=seed, dataset_name="coco-negatives",
+                drop_existing_dataset=True,
+            )
+            if len(ds) == last:  # COCO has no more indoor images
+                return
+            last = len(ds)
+            yield [(s.filepath, [d.label for d in (s.ground_truth.detections if s.ground_truth else [])]) for s in ds]
+            size *= 2
+
+    kept, dropped, enough = collect_negatives(batches(), n, screen, conf, seed)
+    if not enough:
+        logger.warning("  only %d negatives left after screening (wanted %d): COCO has no more indoor "
+                       "images without our classes", len(kept), n)
     local = fresh_staging(staging, NEGATIVES)
-    count = write_negatives([Path(p) for p in picked], local)
-    publish(local, dest, {"source": "coco-2017", "kind": "negatives", "images": count,
-                          "indoor_classes": list(INDOOR_CLASSES), "forbidden_classes": list(FORBIDDEN_CLASSES)})
-    logger.info("  %d negatives in %.0fs", count, time.time() - t0)
-    return count
+    count = write_negatives(kept, local)
+    publish(local, dest, {
+        "source": "coco-2017", "kind": "negatives", "images": count, "wanted": n,
+        "indoor_classes": list(INDOOR_CLASSES), "forbidden_classes": list(FORBIDDEN_CLASSES),
+        "screened_with": screen_name, "screen_conf": conf, "screen_hazards": list(NEGATIVE_HAZARDS),
+        "dropped_by_screen": len(dropped),
+    })
+    logger.info("  %d negatives (%d dropped by the screen) in %.0fs", count, len(dropped), time.time() - t0)
+    return {"kept": kept, "dropped": dropped, "enough": enough}

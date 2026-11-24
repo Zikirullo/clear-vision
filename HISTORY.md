@@ -5,6 +5,46 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: screen the COCO negatives with budget_v1 and top up to ~3,000 (2026-11-24)
+
+- Why: a "negative" with unlabeled stairs, a curb or a pole would teach v2 to ignore real
+  hazards. Indoor COCO scenes can contain them (COCO doesn't label stairs or curbs).
+- `scripts/download_datasets.py`:
+  - `NEGATIVE_HAZARDS` (stairs, curb, pole, pothole, manhole, bollard, barrier,
+    traffic_cone), `SCREEN_CONF` 0.25, `SCREEN_IMGSZ` 512, and `hazard_hits()`.
+  - `collect_negatives(batches, n, screen)` takes eligible images (same rules as
+    `pick_negatives`) from growing candidate batches. Each new image is screened once,
+    images with a hazard detection are dropped, and it stops at n clean images. It reports
+    when there are not enough.
+  - `make_yolo_screen()` runs an Ultralytics model. `draw_hits()` draws what it saw.
+  - `download_negatives(..., screen=, screen_name=)` asks FiftyOne for 4x n candidates,
+    then 8x, 16x ... until n remain or COCO returns no new images.
+  - `.done` records `screened_with` and `dropped_by_screen`. A download done with another
+    screen (or none) is redone.
+- Notebook 02:
+  - New settings: `NEGATIVES_SCREEN_MODEL` (exports/budget_v1/best.pt),
+    `NEGATIVES_SCREEN_CONF` 0.25 and `NEGATIVES_SCREEN_IMGSZ` 512. It fails loudly if the
+    model is missing.
+  - Prints kept/dropped counts, dropped images per class, and a warning if fewer than
+    wanted. Shows 8 dropped examples with budget_v1's boxes in red.
+- Tested:
+  - 6 new tests in `tests/test_download.py`:
+    - hazard filter: classes and conf;
+    - drop + top-up from the next batch, each image screened once, ineligible images never
+      screened, stop when enough;
+    - not enough; no screen;
+    - `download_negatives` with a fake FiftyOne: candidate sizes, `.done` info, skip when
+      done, redo with another screen, stop when COCO has no more;
+    - drawing.
+  - `pytest`: 361 passed.
+  - On the Mac, `make_yolo_screen` with the real budget_v1 flagged hazards in street photos
+    (pole, bollard, manhole).
+- Not tested: the real FiftyOne download and screening in Colab. How many COCO indoor images
+  budget_v1 flags (it over-detects poles and manholes) is unknown. If it flags many,
+  topping up may need several larger FiftyOne downloads, which take longer.
+
+---
+
 ## feat: v2 data: four Roboflow sources, focus-only append, pHash leakage guard, external test and negatives (2026-11-24)
 
 - Why: budget_v1 is weakest on curb, stairs, pothole, pole and manhole. On Nov 18 it scored

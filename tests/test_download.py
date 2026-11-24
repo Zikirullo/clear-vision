@@ -237,3 +237,111 @@ def test_write_negatives_has_empty_labels(tmp_path: Path) -> None:
     assert sorted(p.name for p in (out / "images" / "train").iterdir()) == ["a.jpg", "b.jpg"]
     assert [(out / "labels" / "train" / f"{s}.txt").read_text() for s in "ab"] == ["", ""]
     assert dl.read_class_names(out) == ["background"]
+
+
+# ---------------------------------------------------------------------- negatives screened with budget_v1
+
+def fake_screen(hazardous: dict[str, list]) -> tuple:
+    """A detector that 'sees' the given detections in images named in `hazardous`; it records
+    every image it was run on."""
+    calls: list[str] = []
+
+    def screen(paths):
+        calls.extend(p.name for p in paths)
+        return {p: hazardous.get(p.name, []) for p in paths}
+
+    return screen, calls
+
+
+def test_hazard_hits_only_our_hazards_at_conf() -> None:
+    dets = [("stairs", 0.3, 0, 0, 1, 1), ("curb", 0.2, 0, 0, 1, 1), ("car", 0.9, 0, 0, 1, 1),
+            ("traffic_cone", 0.25, 0, 0, 1, 1)]
+    assert [d[0] for d in dl.hazard_hits(dets)] == ["stairs", "traffic_cone"]
+    assert set(dl.NEGATIVE_HAZARDS) == {"stairs", "curb", "pole", "pothole", "manhole", "bollard", "barrier",
+                                        "traffic_cone"}
+    assert (dl.SCREEN_CONF, dl.SCREEN_IMGSZ) == (0.25, 512)
+
+
+def test_collect_negatives_drops_hazards_and_tops_up_from_more_images() -> None:
+    indoor = ["chair"]
+    first = [(f"/coco/{i}.jpg", indoor) for i in range(4)] + [("/coco/person.jpg", ["chair", "person"])]
+    second = first + [(f"/coco/{i}.jpg", indoor) for i in range(4, 8)]  # a bigger batch repeats the first
+    screen, calls = fake_screen({
+        "0.jpg": [("stairs", 0.8, 0.1, 0.1, 0.5, 0.9)],
+        "2.jpg": [("pole", 0.26, 0.4, 0.0, 0.5, 1.0)],
+        "3.jpg": [("pole", 0.10, 0.4, 0.0, 0.5, 1.0), ("car", 0.9, 0, 0, 1, 1)],  # weak pole, car: kept
+        "5.jpg": [("curb", 0.5, 0.0, 0.8, 1.0, 1.0)],
+    })
+    kept, dropped, enough = dl.collect_negatives([first, second, AssertionError], 4, screen)
+    assert enough and len(kept) == 4  # stopped before the third batch
+    assert {p.name for p in dropped} == {"0.jpg", "2.jpg", "5.jpg"}  # 2 clean after batch 1 -> batch 2
+    assert not {p.name for p in kept} & {"0.jpg", "2.jpg", "5.jpg", "person.jpg"}
+    assert sorted(calls) == sorted(set(calls))  # each image screened once
+    assert "person.jpg" not in calls  # not eligible: never screened
+    assert dropped[Path("/coco/0.jpg")] == [("stairs", 0.8, 0.1, 0.1, 0.5, 0.9)]
+
+
+def test_collect_negatives_says_when_there_are_not_enough() -> None:
+    batch = [(f"/coco/{i}.jpg", ["sink"]) for i in range(3)]
+    screen, _ = fake_screen({"1.jpg": [("manhole", 0.9, 0, 0, 1, 1)]})
+    kept, dropped, enough = dl.collect_negatives([batch, batch], 5, screen)
+    assert not enough and [p.name for p in kept] == ["0.jpg", "2.jpg"] and len(dropped) == 1
+
+
+def test_collect_negatives_without_screen_keeps_all_eligible() -> None:
+    batch = [(f"/coco/{i}.jpg", ["bed"]) for i in range(5)]
+    kept, dropped, enough = dl.collect_negatives([batch], 3, None, seed=7)
+    assert enough and len(kept) == 3 and not dropped
+    assert kept == dl.collect_negatives([batch], 3, None, seed=7)[0]
+
+
+def test_download_negatives_screens_tops_up_and_skips_when_done(tmp_path: Path, monkeypatch) -> None:
+    import sys
+    from types import ModuleType
+
+    import cv2
+    import numpy as np
+
+    coco = tmp_path / "coco"
+    coco.mkdir()
+    for i in range(12):
+        cv2.imwrite(str(coco / f"{i:03d}.jpg"), np.full((20, 20, 3), i * 20, np.uint8))
+    sizes: list[int] = []
+
+    def load_zoo_dataset(name, split, label_types, classes, max_samples, **kwargs):
+        sizes.append(max_samples)
+        det = SimpleNamespace
+        return [det(filepath=str(coco / f"{i:03d}.jpg"), ground_truth=det(detections=[det(label="tv")]))
+                for i in range(min(max_samples, 12))]
+
+    zoo = ModuleType("fiftyone.zoo")
+    zoo.load_zoo_dataset = load_zoo_dataset
+    monkeypatch.setitem(sys.modules, "fiftyone", ModuleType("fiftyone"))
+    monkeypatch.setitem(sys.modules, "fiftyone.zoo", zoo)
+    # 4 candidates per wanted image -> 8 first; 3 of them show hazards -> top up to 12.
+    screen, _ = fake_screen({f"{i:03d}.jpg": [("bollard", 0.7, 0, 0, 1, 1)] for i in (1, 4, 6)})
+    raw = tmp_path / "raw"
+    result = dl.download_negatives(raw, n=2 * 3, staging=tmp_path / "staging", screen=screen, screen_name="budget_v1")
+    assert sizes == [24]  # 6 wanted -> 24 candidates asked; the fake has 12, enough after screening
+    assert result["enough"] and len(result["kept"]) == 6 and len(result["dropped"]) == 3
+    info = json.loads((raw / "negatives" / ".done").read_text())
+    assert info["screened_with"] == "budget_v1" and info["dropped_by_screen"] == 3 and info["images"] == 6
+    assert len(list((raw / "negatives" / "images" / "train").iterdir())) == 6
+    # Done with the same screen: skipped. Done without a screen (older run): redone.
+    assert dl.download_negatives(raw, n=6, staging=tmp_path / "staging", screen=screen,
+                                 screen_name="budget_v1")["kept"] == []
+    sizes.clear()
+    many, _ = fake_screen({f"{i:03d}.jpg": [("stairs", 0.9, 0, 0, 1, 1)] for i in range(12) if i % 2})
+    result = dl.download_negatives(raw, n=8, staging=tmp_path / "staging", screen=many, screen_name="other")
+    assert not result["enough"] and len(result["kept"]) == 6  # only 6 clean images exist
+    assert sizes == [32, 64]  # asked for more, got no new images, stopped
+
+
+def test_draw_hits_marks_detections(tmp_path: Path) -> None:
+    import cv2
+    import numpy as np
+
+    path = tmp_path / "x.jpg"
+    cv2.imwrite(str(path), np.zeros((100, 200, 3), np.uint8))
+    out = dl.draw_hits(path, [("stairs", 0.5, 0.25, 0.5, 0.75, 0.9)])
+    assert out.shape == (100, 200, 3) and out[50, 100, 0] > 200  # red (RGB) top edge of the box
