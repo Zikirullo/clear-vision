@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts import download_datasets as dl
 from scripts.download_datasets import (
     DONE,
     REPO,
@@ -192,8 +193,47 @@ def test_notebook_code_compiles_and_reuses_shared_module(name: str) -> None:
 
 def test_notebook_02_downloads_before_append() -> None:
     code = notebook_code("02_merge_datasets.ipynb")
-    assert 'DOWNLOAD_NEW = ["rf_sidewalk", "rf_barricade"]' in code[0]
+    assert 'DOWNLOAD_NEW = ["rf_freesight", "rf_neytra", "rf_safewalk", "rf_drone_obstacles"]' in code[0]
+    assert '"negatives"]' in code[0] and "APPEND = True" in code[0] and "APPEND_MAX_SIDE = 800" in code[0]
     download = next(i for i, c in enumerate(code) if "download_roboflow_datasets(" in c)
     merge = next(i for i, c in enumerate(code) if "merge_datasets.append(" in c)
     assert download < merge
-    assert "Path(LOCAL_RAW)" in code[download]
+    assert "Path(LOCAL_RAW)" in code[download] and "download_negatives(" in code[download]
+    assert "focus_only=" in code[merge] and "phash_distance=PHASH_DISTANCE" in code[merge]
+
+
+# ---------------------------------------------------------------------- v2: class check, negatives
+
+def test_class_table_and_suspicious_drops() -> None:
+    mapping = {"unlisted": "drop", "map": {"Curb": "curb", "Light": "drop"}}
+    table = dl.class_table(["Curb", "Curbs", "Light", "tree"], mapping)
+    assert table == [("Curb", "curb"), ("Curbs", "drop"), ("Light", "drop"), ("tree", "drop")]
+    assert dl.suspicious_drops(table) == ["Curbs", "Light"]  # look like ours: check the mapping
+    assert dl.class_table(["x"], {"map": {}}) == [("x", "UNMAPPED")]
+
+
+def test_pick_negatives_needs_indoor_and_none_of_our_classes() -> None:
+    images = [
+        ("office", ["chair", "laptop"]),
+        ("kitchen", ["oven", "sink", "book"]),
+        ("with_person", ["chair", "person"]),  # a person would be an unlabeled object
+        ("street", ["car", "potted plant"]),
+        ("nothing_indoor", ["kite"]),
+        ("bedroom", ["bed"]),
+    ]
+    assert dl.pick_negatives(images, 10) == ["bedroom", "kitchen", "office"]
+    two = dl.pick_negatives(images, 2, seed=1)
+    assert len(two) == 2 and two == dl.pick_negatives(images, 2, seed=1)
+    assert "person" in dl.FORBIDDEN_CLASSES and "traffic light" in dl.FORBIDDEN_CLASSES
+
+
+def test_write_negatives_has_empty_labels(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    for n in ("a.jpg", "b.jpg"):
+        (src / n).write_bytes(b"jpeg")
+    assert dl.write_negatives(sorted(src.iterdir()), tmp_path / "negatives") == 2
+    out = tmp_path / "negatives"
+    assert sorted(p.name for p in (out / "images" / "train").iterdir()) == ["a.jpg", "b.jpg"]
+    assert [(out / "labels" / "train" / f"{s}.txt").read_text() for s in "ab"] == ["", ""]
+    assert dl.read_class_names(out) == ["background"]

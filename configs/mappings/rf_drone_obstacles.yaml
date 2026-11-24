@@ -1,0 +1,70 @@
+# droneobstacles-bvrmw/drone-obstacles-acuxy v4 (~11k images: curb, stairs, manhole, pole, fence, ...). CC BY 4.0.
+# Written before download: the spellings are guesses, so mapped names the dataset lacks only
+# warn. Notebook 02 section 2 prints the real class names; fix this file if a class is missed.
+# "Light" is dropped and its boxes are saved as review samples (datasets/review/): if they
+# are traffic lights, map it to traffic_light and append again (only labels are re-mapped).
+folder: rf_drone_obstacles
+unlisted: drop
+missing: warn
+review: [Light, light]
+map:
+  Curb: curb
+  curb: curb
+  Kerb: curb
+  kerb: curb
+  Stairs: stairs
+  stairs: stairs
+  staircase: stairs
+  Staircase: stairs
+  stair: stairs
+  Stair: stairs
+  Pole: pole
+  pole: pole
+  Pothole: pothole
+  pothole: pothole
+  manhole: manhole
+  Manhole: manhole
+  bollard: bollard
+  Bollard: bollard
+  "traffic cone": traffic_cone
+  "Traffic cone": traffic_cone
+  "Traffic Cone": traffic_cone
+  "traffic-cone": traffic_cone
+  traffic_cone: traffic_cone
+  "Road-barrier": barrier
+  "road-barrier": barrier
+  barrier: barrier
+  Barrier: barrier
+  fence: barrier
+  Fence: barrier
+  crosswalk: crosswalk
+  Crosswalk: crosswalk
+  People: person
+  people: person
+  person: person
+  Person: person
+  car: car
+  Car: car
+  bus: bus
+  Bus: bus
+  truck: truck
+  Truck: truck
+  motorbike: motorcycle
+  Motorbike: motorcycle
+  motorcycle: motorcycle
+  Motorcycle: motorcycle
+  Bicycle: bicycle
+  bicycle: bicycle
+  Dog: dog
+  dog: dog
+  Bench: bench
+  bench: bench
+  "Traffic-light": traffic_light
+  "traffic-light": traffic_light
+  "Traffic light": traffic_light
+  "traffic light": traffic_light
+  traffic_light: traffic_light
+  "two wheeler": drop
+  "Two wheeler": drop
+  Light: drop
+  light: drop

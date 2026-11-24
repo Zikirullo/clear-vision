@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 import yaml
 
@@ -214,8 +215,26 @@ def mappings_from_dir(mappings_dir: Path) -> MappingLoader:
     return load
 
 
+# Words that suggest a dropped source class is one we want (a mapping that missed a spelling).
+WANTED_HINTS = ("curb", "kerb", "stair", "step", "pole", "pothole", "hole", "manhole", "bollard", "cone",
+                "barrier", "fence", "crosswalk", "zebra", "person", "people", "pedestrian", "light")
+
+
+def class_table(names: Sequence[str], mapping: dict[str, Any]) -> list[tuple[str, str]]:
+    """(source class, target class or "drop") for each real class of a dataset."""
+    cmap = {str(k): str(v) for k, v in (mapping.get("map") or {}).items()}
+    default = "drop" if mapping.get("unlisted") == "drop" else "UNMAPPED"
+    return [(n, cmap.get(n, default)) for n in names]
+
+
+def suspicious_drops(table: Sequence[tuple[str, str]]) -> list[str]:
+    """Dropped classes whose name looks like one of ours, e.g. "Curbs" when only "Curb" is mapped."""
+    return [n for n, t in table if t == "drop" and any(h in n.lower() for h in WANTED_HINTS)]
+
+
 def check_mappings(raw: Path, names: Sequence[str], load_mapping: MappingLoader) -> None:
-    """Log, per downloaded dataset, the classes its mapping file doesn't cover."""
+    """Log, per downloaded dataset, its real class names, where each goes, and problems:
+    unmapped classes, mapped names it lacks, dropped names that look like ours."""
     logger.info("\nClass check against configs/mappings/:")
     for name in names:
         classes = read_class_names(raw / name)
@@ -225,8 +244,78 @@ def check_mappings(raw: Path, names: Sequence[str], load_mapping: MappingLoader)
         if mapping is None:
             logger.warning("[%s] no mapping file configs/mappings/%s.yaml. Classes: %s", name, name, classes)
             continue
+        table = class_table(classes, mapping)
+        logger.info("[%s] %d real classes:", name, len(classes))
+        for src, target in table:
+            logger.info("    %-32s -> %s", src, target)
         problems = mapping_problems(classes, mapping)
+        if mapping.get("missing") == "warn":  # guessed spellings: missing ones are expected
+            problems = [p for p in problems if not p.startswith("mapping lists")]
         for problem in problems:
             logger.warning("[%s] %s", name, problem)
+        for cls in suspicious_drops(table):
+            logger.warning("[%s] CHECK: %r is dropped but looks like one of our classes", name, cls)
         if not problems:
             logger.info("[%s] all %d classes are mapped", name, len(classes))
+
+
+# ---------------------------------------------------------------------- negatives (indoor, no labels)
+
+# COCO classes that mark an indoor scene.
+INDOOR_CLASSES = ("chair", "couch", "bed", "dining table", "toilet", "tv", "laptop", "refrigerator", "oven",
+                  "microwave", "sink", "potted plant", "book", "clock", "keyboard")
+# COCO classes that are (or map to) our 20 classes: an image with any of them is no negative,
+# since its objects would be unlabeled. Outdoor scenes are excluded too.
+FORBIDDEN_CLASSES = ("person", "bicycle", "car", "motorcycle", "bus", "truck", "dog", "bench", "fire hydrant",
+                     "traffic light", "stop sign", "parking meter", "train", "airplane", "boat")
+NEGATIVES = "negatives"
+
+
+def pick_negatives(images: Iterable[tuple[str, Iterable[str]]], n: int, seed: int = 51) -> list[str]:
+    """Image ids with an indoor class and no forbidden class, `n` of them at random (sorted).
+
+    images: (image id, COCO class names in it)."""
+    indoor, forbidden = set(INDOOR_CLASSES), set(FORBIDDEN_CLASSES)
+    ok = sorted(img for img, labels in images if indoor & set(labels) and not forbidden & set(labels))
+    return sorted(random.Random(seed).sample(ok, min(n, len(ok))))
+
+
+def write_negatives(images: Sequence[Path], dest: Path) -> int:
+    """YOLO folder of background images: images/train/<name>, an EMPTY labels/train/<stem>.txt
+    each (so the merge sees "no boxes", not "missing label"), and data.yaml with one dummy
+    class "background" (negatives.yaml maps it to drop). Returns the image count."""
+    (dest / "images" / "train").mkdir(parents=True, exist_ok=True)
+    (dest / "labels" / "train").mkdir(parents=True, exist_ok=True)
+    for image in images:
+        shutil.copyfile(image, dest / "images" / "train" / image.name)
+        (dest / "labels" / "train" / f"{image.stem}.txt").write_text("")
+    (dest / "data.yaml").write_text(yaml.safe_dump({"names": ["background"]}))
+    return len(images)
+
+
+def download_negatives(raw: Path, n: int = 3000, staging: Path = STAGING, seed: int = 51) -> int:
+    """~n indoor COCO-2017 train images without our classes into raw/negatives/ (FiftyOne zoo;
+    only the needed images are downloaded). Skipped if already done. Returns images written."""
+    dest = raw / NEGATIVES
+    if skip_if_done(dest):
+        return 0
+    import fiftyone.zoo as foz
+
+    t0 = time.time()
+    candidates = foz.load_zoo_dataset(
+        "coco-2017", split="train", label_types=["detections"], classes=list(INDOOR_CLASSES),
+        max_samples=n * 4, shuffle=True, seed=seed, dataset_name="coco-negatives", drop_existing_dataset=True,
+    )
+    labels = {
+        s.filepath: [d.label for d in (s.ground_truth.detections if s.ground_truth else [])]
+        for s in candidates
+    }
+    picked = pick_negatives(labels.items(), n, seed)
+    if len(picked) < n:
+        logger.warning("  only %d indoor images without our classes (wanted %d)", len(picked), n)
+    local = fresh_staging(staging, NEGATIVES)
+    count = write_negatives([Path(p) for p in picked], local)
+    publish(local, dest, {"source": "coco-2017", "kind": "negatives", "images": count,
+                          "indoor_classes": list(INDOOR_CLASSES), "forbidden_classes": list(FORBIDDEN_CLASSES)})
+    logger.info("  %d negatives in %.0fs", count, time.time() - t0)
+    return count

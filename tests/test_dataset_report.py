@@ -270,3 +270,27 @@ def test_example_grid(dataset: Path, drive_zip: Path) -> None:
     assert grid is not None and grid.shape == (300, 1600, 3)  # 4 cone images -> one row
     empty = dr.Scan(classes=CLASSES, images={s: [] for s in dr.SPLITS}, image_classes={})
     assert dr.example_grid(dataset, empty, "car") is None
+
+
+def test_priority_classes_are_repeated_even_when_common() -> None:
+    # car is in 6 images, above the target of 3: as a focus class 1x, as a priority class >= 2x.
+    factors, _ = dr.repeat_factors(synthetic_scan(), focus=["pole"], target_images=3, priority=["car"])
+    assert factors == {"pole": 2, "car": 2}
+    factors, _ = dr.repeat_factors(synthetic_scan(), focus=[], target_images=100, priority=["pole"])
+    assert factors == {"pole": 6}  # capped at PRIORITY_REPEAT[1]
+
+
+def test_no_repeat_sources_give_no_extra_repeats() -> None:
+    scan = synthetic_scan()
+    scan.boxes = [dr.BoxRow(b.split, b.image, "rf_cone" if b.image == "pole0.jpg" else b.source, b.cls, b.w, b.h,
+                            b.pseudo, b.size) for b in scan.boxes]
+    lines, summary = dr.balanced_train(scan, focus=[], target_images=8, priority=["pole"],
+                                       no_repeat_sources={"pole": ["rf_cone"]})
+    assert lines.count("./images/train/pole0.jpg") == 1  # from rf_cone: listed once
+    assert lines.count("./images/train/pole1.jpg") == 4  # ceil(8/2) = 4, within 2..6
+    assert summary["priority"] == ["pole"] and summary["no_repeat_sources"] == {"pole": ["rf_cone"]}
+
+
+def test_v2_priority_settings() -> None:
+    assert dr.PRIORITY_CLASSES == ("curb", "stairs", "pothole", "pole", "manhole", "traffic_cone", "bollard")
+    assert dr.NO_REPEAT_SOURCES == {"traffic_cone": ("rf_cone",)}

@@ -5,6 +5,91 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: v2 data: four Roboflow sources, focus-only append, pHash leakage guard, external test and negatives (2026-11-24)
+
+- Why: budget_v1 is weakest on curb, stairs, pothole, pole and manhole. On Nov 18 it scored
+  0.98 on cones in the test split but found no cone in 24 real street photos, because the
+  test split comes from the same Roboflow sources as training. Indoors it said "car ahead".
+- `configs/datasets.yaml`: rf_freesight (kaan-bisfl/freesight-akli2 v1), rf_neytra
+  (jeet-xlgwq/neytra-v3-sxshi v4), rf_safewalk (safewalkbd-7jrsx/safewalkbd-final v31) and
+  rf_drone_obstacles (droneobstacles-bvrmw/drone-obstacles-acuxy v4), all CC BY 4.0. The
+  existing fallback uses the newest version if one fails.
+- `configs/mappings/` for the four sources and `negatives`:
+  - `unlisted: drop` and `missing: warn`, written before download, so the spellings are
+    guesses. Notebook 02 prints each dataset's real classes and where each goes, plus
+    `CHECK:` lines for dropped names that look like ours.
+  - `Light` is dropped and saved as review samples (map to traffic_light after checking).
+  - Missing mapped names are one warning line per source, not ~50.
+- `scripts/merge_datasets.py` (append):
+  - `focus_only` per source keeps groups with curb/stairs/pothole/pole/manhole boxes, plus
+    other groups up to 20% of the kept images. Roboflow augmented copies stay together.
+  - pHash leakage guard (imagehash, decoded at reduced size). The merged images' hashes are
+    cached in `phash_index.json` inside the zip:
+    - a new image within 6 bits of a val/test/external_test image is dropped;
+    - one near a train image goes to train;
+    - near-duplicates among new images are joined into one group (across sources: train);
+    - a new external_test image near any other image is dropped.
+    - Counts per source are printed and kept in the report (`focus_dropped`,
+      `near_dup_dropped`, `near_dup_to_train`).
+  - `split: external_test` in a mapping file holds the whole source out (rf_safewalk).
+    `data.yaml` lists `external_test` only when the split exists. The report and class
+    table get an external column only when there is data.
+  - Notebook 02 resizes appended images to 800 px (`APPEND_MAX_SIDE`). The class table and
+    zip size are printed before upload, and a failed space check stops before upload.
+- `scripts/download_datasets.py`:
+  - `class_table`, `suspicious_drops`, and a verbose `check_mappings`.
+  - Negatives: `pick_negatives` (an indoor COCO class and none of person, bicycle, car,
+    motorcycle, bus, truck, dog, bench, fire hydrant, traffic light, or outdoor cues),
+    `write_negatives` (empty label files), and `download_negatives` (FiftyOne coco-2017
+    train, 4x candidates, 3,000 picked).
+- `scripts/dataset_report.py` + notebook 03:
+  - Priority classes (curb, stairs, pothole, pole, manhole, traffic_cone, bollard) are
+    repeated 2-6x even when common.
+  - `NO_REPEAT_SOURCES = {traffic_cone: [rf_cone]}`: rf_cone is a general cone dataset
+    (sports cones, product photos) and gets no extra cone repeats.
+- Evaluation:
+  - `compare_detectors.extract_test_split(..., splits=)` extracts external_test too.
+  - `safety_report.py` + notebook 10 report `test`, `external_test` and the street photos
+    separately. The JSON now has one section per data set.
+  - The street photos have no boxes, so the check is per photo: class found anywhere, plus
+    the other names given. Classes come from `tests/assets/street_photos/expected.yaml` (by
+    file-name prefix).
+- `tests/assets/street_photos/`: the 24 Wikimedia photos, resized to 800 px (3.1 MB), with
+  README (licenses: per-file Commons licenses; attribution still to be added before sharing).
+  Paths in make_photo_video, mobile README, CLAUDE.md and requirements-export updated.
+- `requirements.txt`: imagehash.
+- Tested:
+  - `tests/test_merge_v2.py` (18): the focus filter (20% cap, groups kept together, only
+    listed sources), and pHash on real photos (re-exports match, other photos don't).
+  - Also: distances and the popcount fallback, both guards (drop, to train, joined groups,
+    external), forced splits.
+  - An end-to-end append on real photos: focus only, the copy of a test image dropped, the
+    copy of a train image in train, pair kept together, external split and data.yaml, the
+    pHash index. Plus an append of negatives with empty labels, and the real mapping/dataset
+    entries.
+  - Added tests for the class check, negatives selection and writing, priority and
+    no-repeat balancing, the street check, and external_test extraction.
+  - The old append tests turn the guard off: their synthetic fixtures all share one pHash.
+  - `pytest`: 355 passed. `flutter test`: 55 passed.
+  - Notebook 10's cells ran locally with budget_v1 on a fake zip with test + external_test.
+    Notebook code compiles.
+- budget_v1 street-photo baseline (Mac, conf 0.15): manhole 4/4, stairs 3/4, pothole 3/4,
+  bollard 1/4, pole 1/4, traffic_cone 0/4, so 12 of 24 photos. Cones were called
+  fire_hydrant/barrier, poles car/truck.
+- Not tested / open:
+  - Nothing was downloaded: the real class names of the four datasets and their versions
+    are unchecked. Notebook 02 prints them; mappings may need fixes.
+  - The FiftyOne negatives download wasn't run, and COCO "indoor" images may still contain
+    unlabeled stairs.
+  - Zip size after the append is unknown; the space check guards the upload.
+  - Leakage pHash timing on the full dataset (~tens of thousands of images) wasn't measured.
+  - Whether rf_cone really is mostly sports cones was not checked by eye (notebook 03's
+    grid shows samples).
+  - Notebook 09 (pseudo-labels) leaves external_test alone; re-run it with
+    `FORCE_PSEUDO = True` after the append, as before.
+
+---
+
 ## feat: safety report (recall by object size against the proposed safety target) (2026-11-24)
 
 - Why: mAP doesn't say whether a model is safe to walk with. The proposed target: for each

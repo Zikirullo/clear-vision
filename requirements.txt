@@ -9,3 +9,4 @@ tqdm>=4.66
 # Text encoder for the open-vocab detector (YOLOE / YOLO-World set_classes). Used only when
 # a vocabulary is prompted the first time; the prompted model is then cached in models/openvocab/.
 clip @ git+https://github.com/ultralytics/CLIP.git
+imagehash>=4.3  # perceptual hash: near-duplicate guard in scripts/merge_datasets.py

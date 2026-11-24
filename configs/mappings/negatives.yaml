@@ -1,0 +1,8 @@
+# ~3,000 indoor background images WITHOUT labels (hallways, offices, shops, home rooms) from
+# COCO-2017: images with indoor objects (chair, couch, tv, ...) and none of our classes.
+# They teach the model that "nothing" is a valid answer (indoors the app said "car ahead").
+# Downloaded by notebook 02 (download_datasets.download_negatives). Never focus-filtered.
+folder: negatives
+unlisted: drop
+map:
+  background: drop

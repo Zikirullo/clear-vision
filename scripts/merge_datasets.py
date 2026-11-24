@@ -8,6 +8,8 @@ Each source has a mapping file configs/mappings/<short_name>.yaml:
     unlisted: drop               # optional: drop classes missing from `map` (default: fail)
     missing: warn                # optional: mapped classes the source lacks only warn (default: fail)
     format: mapillary            # optional: instance masks instead of YOLO labels
+    split: external_test         # optional: the whole source goes to this split (held out of
+                                 # train/val/test, e.g. as an external test set)
 
 The result is ONE file on Drive, not a folder of ~100k files. Drive's background upload
 lost files silently when the folder didn't fit:
@@ -31,6 +33,15 @@ Append (--append NAME ...):
 - Copies merged.zip to the local disk, adds the new sources (same rules, de-duplicated
   against merged images, split on their own), and re-maps merged sources whose
   mapping file changed.
+- --focus-only NAME ...: keep only images of those sources with a FOCUS_CLASSES box (curb,
+  stairs, pothole, pole, manhole), plus other images up to --other-share (20%) of the kept
+  images. Roboflow augmented copies are kept or dropped together.
+- Leakage guard (Roboflow datasets often remix the same photos): a perceptual hash (pHash)
+  of every new image is compared with the merged images (cached in phash_index.json).
+  A new image within --phash-distance (6 bits) of a val, test or external_test image is
+  dropped; one near a train image goes to train. Near-duplicates among the new images
+  share a split (train if they would be split up). A new external_test image near any
+  other image is dropped, so the external test stays unseen.
 - Then re-zips and uploads with the same space check and verification.
 
 Training notebooks load it with src/colab_data.py prepare_dataset().
@@ -48,6 +59,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
+import io
 import json
 import logging
 import os
@@ -64,8 +76,10 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 import cv2
+import imagehash
 import numpy as np
 import yaml
+from PIL import Image
 from tqdm.auto import tqdm
 
 logger = logging.getLogger("merge")
@@ -73,6 +87,13 @@ logger = logging.getLogger("merge")
 REPO = Path(__file__).resolve().parent.parent
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 SPLITS = ("train", "val", "test")
+EXTERNAL = "external_test"  # a whole held-out source, never trained or validated on
+ALL_SPLITS = (*SPLITS, EXTERNAL)
+HELD_OUT = ("val", "test", EXTERNAL)  # a new image close to one of these is dropped
+FOCUS_CLASSES = ("curb", "stairs", "pothole", "pole", "manhole")  # --focus-only keeps images with these
+OTHER_SHARE = 0.2  # --focus-only: other images make up at most this share of a source's kept images
+PHASH_DISTANCE = 6  # near-duplicate: pHashes (64 bits) differ in at most this many bits
+PHASH_FILE = "phash_index.json"  # "split/name" -> pHash (16 hex digits) of each merged image
 DROP = "drop"
 WORK_MARKER = ".merge_work"  # only folders carrying this marker are ever deleted
 PREPARED_MARKER = ".prepared"  # written by src/colab_data.py prepare_dataset(); never zipped
@@ -106,6 +127,7 @@ class Mapping:
     missing_warn: bool = False
     format: str = "yolo"  # "yolo" or "mapillary"
     min_size_px: int = 12  # mapillary only
+    split: str = ""  # "" = normal train/val/test split; EXTERNAL = the whole source held out
 
 
 @dataclass
@@ -118,7 +140,9 @@ class Record:
     review: list[ReviewBox] = field(default_factory=list)
     out_stem: str = ""
     md5: str = ""  # of the source file
+    phash: int = 0  # of the merged (resized) image
     split: str = ""
+    force_split: str = ""  # EXTERNAL (source setting) or "train" (near a merged train image)
 
     @property
     def out_name(self) -> str:
@@ -134,6 +158,9 @@ class SourceStats:
     invalid_boxes: int = 0
     small_instances_skipped: int = 0
     dropped_boxes: Counter = field(default_factory=Counter)
+    focus_dropped: int = 0  # images left out by --focus-only
+    near_dup_dropped: int = 0  # near a held-out image (or, for external_test, near any image)
+    near_dup_to_train: int = 0  # moved to train: near a train image
 
 
 @dataclass(frozen=True)
@@ -208,8 +235,11 @@ def load_mappings(mapping_dir: Path, classes: Sequence[str]) -> list[Mapping]:
                 missing_warn=data.get("missing") == "warn",
                 format=str(data.get("format", "yolo")),
                 min_size_px=int(data.get("min_size_px", 12)),
+                split=str(data.get("split", "")),
             )
         )
+        if mappings[-1].split not in ("", EXTERNAL):
+            raise MergeError(f"{path.name}: split must be '{EXTERNAL}' or left out, got {mappings[-1].split!r}")
     return mappings
 
 
@@ -266,15 +296,16 @@ def check_classes(m: Mapping, names: Sequence[str], where: str) -> None:
         )
     if unmapped:
         logger.info("%s: dropping unlisted classes %s", m.short_name, unmapped)
-    for missing in (c for c in m.classes if c not in names):
-        close = difflib.get_close_matches(missing, names, n=5, cutoff=0.4)
-        msg = (
-            f"{m.short_name}: mapping lists class {missing!r}, but {where} has no such "
+    missing = [c for c in m.classes if c not in names]
+    if missing and m.missing_warn:  # e.g. several guessed spellings of one class: one line
+        logger.warning("WARNING %s: %d mapped classes are not in %s (ignored): %s",
+                       m.short_name, len(missing), where, missing)
+    elif missing:
+        close = difflib.get_close_matches(missing[0], names, n=5, cutoff=0.4)
+        raise MergeError(
+            f"{m.short_name}: mapping lists class {missing[0]!r}, but {where} has no such "
             f"class. Similar names: {close or 'none'}."
         )
-        if not m.missing_warn:
-            raise MergeError(msg)
-        logger.warning("WARNING %s", msg)
 
 
 # ---------------------------------------------------------------------- scanning
@@ -499,6 +530,8 @@ def scan_sources(
         st = stats[m.short_name] = SourceStats(folder=m.folder)
         scan = scan_mapillary if m.format == "mapillary" else scan_yolo
         found = scan(m, root, target_ids, st)
+        for r in found:
+            r.force_split = m.split
         st.images = len(found)
         records += found
     assign_out_stems(records)
@@ -515,6 +548,193 @@ def assign_out_stems(records: Sequence[Record]) -> None:
             stem, n = f"{base}_{n}", n + 1
         taken.add(stem.lower())
         r.out_stem = stem
+
+
+# ---------------------------------------------------------------------- focus filter
+
+
+def focus_filter(
+    records: Sequence[Record], focus_ids: set[int], other_share: float = OTHER_SHARE, seed: int = 42,
+) -> tuple[list[Record], int]:
+    """Keep every group (Roboflow augmented copies) with a box of a focus class, plus randomly
+    chosen other groups while other images stay at most `other_share` of the kept images.
+    Returns (kept records in their original order, number dropped)."""
+    groups: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        groups[r.group].append(r)
+    focus = {g for g, rs in groups.items() if any(b[0] in focus_ids for r in rs for b in r.boxes)}
+    n_focus = sum(len(groups[g]) for g in focus)
+    budget = int(n_focus * other_share / (1 - other_share)) if other_share < 1 else len(records)
+    others = sorted(g for g in groups if g not in focus)
+    random.Random(f"{seed}-focus").shuffle(others)
+    keep, used = set(focus), 0
+    for g in others:
+        if used + len(groups[g]) <= budget:
+            keep.add(g)
+            used += len(groups[g])
+    kept = [r for r in records if r.group in keep]
+    return kept, len(records) - len(kept)
+
+
+def apply_focus_only(
+    records: Sequence[Record], focus_only: Sequence[str], classes: Sequence[str], stats: dict[str, SourceStats],
+    other_share: float = OTHER_SHARE, seed: int = 42,
+) -> list[Record]:
+    """focus_filter() on the records of each source named in `focus_only`."""
+    focus_ids = {classes.index(c) for c in FOCUS_CLASSES if c in classes}
+    kept: list[Record] = []
+    for source in dict.fromkeys(r.source for r in records):
+        rs = [r for r in records if r.source == source]
+        if source in focus_only:
+            rs, dropped = focus_filter(rs, focus_ids, other_share, seed)
+            stats[source].focus_dropped = dropped
+            logger.info("%s: focus only, kept %d images, dropped %d", source, len(rs), dropped)
+        kept += rs
+    return kept
+
+
+# ---------------------------------------------------------------------- near-duplicates (pHash)
+
+
+def phash_of(data: bytes) -> int:
+    """64-bit perceptual hash of JPEG bytes. Decodes at reduced size (PIL draft): pHash looks
+    at a 32x32 grey thumbnail anyway."""
+    with Image.open(io.BytesIO(data)) as im:
+        im.draft("L", (128, 128))
+        return int(str(imagehash.phash(im)), 16)
+
+
+def _popcount(x: np.ndarray) -> np.ndarray:
+    if hasattr(np, "bitwise_count"):  # NumPy >= 2.0
+        return np.bitwise_count(x)
+    table = np.array([bin(i).count("1") for i in range(256)], np.uint8)
+    return table[x.view(np.uint8)].reshape(*x.shape, 8).sum(-1)
+
+
+def near_matches(a: Sequence[int], b: Sequence[int], max_distance: int, chunk: int = 256) -> list[tuple[int, int]]:
+    """Pairs (i, j) with Hamming distance(a[i], b[j]) <= max_distance (a negative distance
+    turns the guard off: no pairs)."""
+    if not len(a) or not len(b) or max_distance < 0:
+        return []
+    av, bv = np.asarray(a, np.uint64), np.asarray(b, np.uint64)
+    pairs: list[tuple[int, int]] = []
+    for start in range(0, len(av), chunk):
+        dist = _popcount(av[start:start + chunk, None] ^ bv[None, :])
+        ii, jj = np.nonzero(dist <= max_distance)
+        pairs += [(int(i) + start, int(j)) for i, j in zip(ii, jj)]
+    return pairs
+
+
+def has_near(a: Sequence[int], b: Sequence[int], max_distance: int) -> list[bool]:
+    """For each a[i]: is any b[j] within max_distance?"""
+    hit = [False] * len(a)
+    for i, _ in near_matches(a, b, max_distance):
+        hit[i] = True
+    return hit
+
+
+def load_phash_index(dataset: Path) -> dict[str, int]:
+    """phash_index.json of a merged dataset ("split/name" -> pHash), computed for images it
+    lacks (first append after this feature, or images added by hand) and saved."""
+    path = dataset / PHASH_FILE
+    index = {k: int(v, 16) for k, v in json.loads(path.read_text()).items()} if path.exists() else {}
+    images = [
+        p for split in ALL_SPLITS for p in sorted((dataset / "images" / split).glob("*"))
+        if p.suffix.lower() in IMAGE_EXTS
+    ]
+    names = [f"{p.parent.name}/{p.name}" for p in images]
+    todo = [(n, p) for n, p in zip(names, images) if n not in index]
+    if todo:
+        hashes = threaded(lambda np_: phash_of(np_[1].read_bytes()), todo, "pHash of merged images")
+        index.update({n: h for (n, _), h in zip(todo, hashes)})
+    index = {n: index[n] for n in names}  # forget images that are gone
+    save_phash_index(dataset, index)
+    return index
+
+
+def save_phash_index(dataset: Path, index: dict[str, int]) -> None:
+    (dataset / PHASH_FILE).write_text(json.dumps({k: f"{v:016x}" for k, v in index.items()}))
+
+
+def guard_against_merged(
+    records: Sequence[Record], merged: dict[str, int], stats: dict[str, SourceStats],
+    max_distance: int = PHASH_DISTANCE,
+) -> list[Record]:
+    """Compare new records with the merged images ("split/name" -> pHash) before splitting.
+
+    - Near a val/test/external_test image: dropped (it would leak into evaluation).
+    - Near a train image: forced to train.
+    - New external_test records are dropped when near ANY merged image.
+    """
+    held = [h for n, h in merged.items() if n.split("/")[0] in HELD_OUT]
+    train = [h for n, h in merged.items() if n.split("/")[0] == "train"]
+    hashes = [r.phash for r in records]
+    near_held, near_train = has_near(hashes, held, max_distance), has_near(hashes, train, max_distance)
+    kept = []
+    for r, held_hit, train_hit in zip(records, near_held, near_train):
+        if held_hit or (r.force_split == EXTERNAL and train_hit):
+            stats[r.source].near_dup_dropped += 1
+            continue
+        if train_hit:
+            r.force_split = "train"
+            stats[r.source].near_dup_to_train += 1
+        kept.append(r)
+    return kept
+
+
+def guard_new_records(
+    records: Sequence[Record], stats: dict[str, SourceStats], max_distance: int = PHASH_DISTANCE,
+) -> list[Record]:
+    """Near-duplicates among the new records, before splitting.
+
+    - An external_test record near a record of another split is dropped.
+    - Other near-duplicates are joined into one group (union-find over near pairs and the
+      existing groups), so assign_splits() keeps them in one split. A joined group that
+      contains a forced-train record is forced to train.
+    """
+    hashes = [r.phash for r in records]
+    pairs = [(i, j) for i, j in near_matches(hashes, hashes, max_distance) if i < j]
+    external = {i for i, r in enumerate(records) if r.force_split == EXTERNAL}
+    drop = {i if i in external else j for i, j in pairs if (i in external) != (j in external)}
+    for i in sorted(drop):
+        stats[records[i].source].near_dup_dropped += 1
+
+    parent = list(range(len(records)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    first_of_group: dict[str, int] = {}
+    for i, r in enumerate(records):
+        parent[find(i)] = find(first_of_group.setdefault(r.group, i))
+    for i, j in pairs:
+        if i not in drop and j not in drop:
+            parent[find(i)] = find(j)
+    clusters: dict[int, list[int]] = defaultdict(list)
+    for i in range(len(records)):
+        if i not in drop:
+            clusters[find(i)].append(i)
+    for members in clusters.values():
+        sources = {records[i].source for i in members}
+        if len(members) == 1 or len({records[i].group for i in members}) == 1:
+            continue
+        # Different sources can't share a group name (assign_splits splits per source), so a
+        # cross-source cluster goes to train; a same-source one becomes one group.
+        to_train = len(sources) > 1 or any(records[i].force_split == "train" for i in members)
+        group = records[members[0]].group
+        for i in members:
+            r = records[i]
+            if r.force_split == EXTERNAL:
+                continue
+            if to_train and r.force_split != "train":
+                r.force_split = "train"
+                stats[r.source].near_dup_to_train += 1
+            elif not to_train:
+                r.group = group
+    return [r for i, r in enumerate(records) if i not in drop]
 
 
 # ---------------------------------------------------------------------- build
@@ -553,13 +773,15 @@ def shrink_jpeg(data: bytes, ext: str, max_side: int, quality: int, where: Path)
 
 def copy_shrink_and_hash(records: Sequence[Record], dest: Path, max_side: int, quality: int) -> tuple[int, int]:
     """Read each image once: hash it, shrink it to a JPEG of at most `max_side` px, write it.
-    The md5 is of the source file. Returns (source bytes, written bytes)."""
+    The md5 is of the source file, the pHash of the written JPEG. Returns (source bytes,
+    written bytes)."""
     dest.mkdir(parents=True, exist_ok=True)
 
     def work(r: Record) -> tuple[int, int]:
         data = r.image.read_bytes()
         r.md5 = hashlib.md5(data).hexdigest()
         out = shrink_jpeg(data, r.image.suffix.lower(), max_side, quality, r.image)
+        r.phash = phash_of(out)
         (dest / r.out_name).write_bytes(out)
         return len(data), len(out)
 
@@ -585,19 +807,27 @@ def remove_duplicates(
 
 
 def assign_splits(records: Sequence[Record], ratios: Sequence[float], seed: int) -> None:
-    """Grouped split per source. Groups with an image in the source's own test split go to
-    test; the rest are shuffled and fill test up to its ratio, then val, then train."""
+    """Grouped split per source. A group with a forced split goes there (external_test before
+    train). Groups with an image in the source's own test split go to test; the rest are
+    shuffled and fill test up to its ratio, then val, then train."""
     by_source: dict[str, dict[str, list[Record]]] = defaultdict(lambda: defaultdict(list))
     for r in records:
         by_source[r.source][r.group].append(r)
     for source, groups in sorted(by_source.items()):
         keys = sorted(groups)
-        forced = {k for k in keys if any(r.own_test for r in groups[k])}
-        rest = [k for k in keys if k not in forced]
+        split_of: dict[str, str] = {}
+        for k in keys:
+            forced_splits = {r.force_split for r in groups[k]}
+            if EXTERNAL in forced_splits:
+                split_of[k] = EXTERNAL
+            elif "train" in forced_splits:
+                split_of[k] = "train"
+        forced = {k for k in keys if k not in split_of and any(r.own_test for r in groups[k])}
+        rest = [k for k in keys if k not in forced and k not in split_of]
         random.Random(f"{seed}-{source}").shuffle(rest)  # per source: adding one doesn't reshuffle others
         n_test = max(0, round(ratios[2] * len(keys)) - len(forced))
         n_val = round(ratios[1] * len(keys))
-        split_of = {k: "test" for k in forced}
+        split_of.update({k: "test" for k in forced})
         for i, k in enumerate(rest):
             split_of[k] = "test" if i < n_test else "val" if i < n_test + n_val else "train"
         for k, split in split_of.items():
@@ -606,7 +836,7 @@ def assign_splits(records: Sequence[Record], ratios: Sequence[float], seed: int)
 
 
 def write_dataset(records: Sequence[Record], staging: Path, dataset: Path) -> None:
-    for split in SPLITS:
+    for split in SPLITS + ((EXTERNAL,) if any(r.split == EXTERNAL for r in records) else ()):
         (dataset / "images" / split).mkdir(parents=True, exist_ok=True)
         (dataset / "labels" / split).mkdir(parents=True, exist_ok=True)
     for r in tqdm(records, desc="write labels"):
@@ -674,14 +904,12 @@ def load_md5_index(dataset: Path) -> dict[str, str]:
 
 
 def write_data_yaml(dataset: Path, classes: Sequence[str]) -> None:
-    data = {
-        "path": LOCAL_DATASET,
-        "train": "images/train",
-        "val": "images/val",
-        "test": "images/test",
-        "nc": len(classes),
-        "names": list(classes),
-    }
+    """data.yaml; `external_test` is listed only when the dataset has that split
+    (score it with model.val(split="external_test"))."""
+    data: dict[str, Any] = {"path": LOCAL_DATASET, "train": "images/train", "val": "images/val", "test": "images/test"}
+    if any((dataset / "images" / EXTERNAL).glob("*")):
+        data[EXTERNAL] = f"images/{EXTERNAL}"
+    data |= {"nc": len(classes), "names": list(classes)}
     (dataset / "data.yaml").write_text(
         "# Generated by scripts/merge_datasets.py. src/colab_data.py prepare_dataset() sets `path`.\n"
         + yaml.safe_dump(data, sort_keys=False)
@@ -836,10 +1064,15 @@ def source_report(
         "missing_label_files": st.missing_label_files,
         "invalid_boxes": st.invalid_boxes,
         "small_instances_skipped": st.small_instances_skipped,
+        "focus_dropped": st.focus_dropped,
+        "near_dup_dropped": st.near_dup_dropped,
+        "near_dup_to_train": st.near_dup_to_train,
         "dropped_boxes": dict(st.dropped_boxes),
         "images": {s: 0 for s in SPLITS},
         "boxes": {s: {} for s in SPLITS},
     }
+    if m.split == EXTERNAL:
+        entry["images"][EXTERNAL], entry["boxes"][EXTERNAL] = 0, {}
     for r in records:
         entry["images"][r.split] += 1
         for c, *_ in r.boxes:
@@ -851,9 +1084,10 @@ def source_report(
 def finalize_report(report: dict[str, Any]) -> None:
     """Recompute the dataset totals from the per-source counts."""
     classes, sources = report["classes"], report["sources"].values()
-    report["images"] = {s: sum(src["images"][s] for src in sources) for s in SPLITS}
+    splits = [s for s in ALL_SPLITS if s in SPLITS or any(s in src["images"] for src in sources)]
+    report["images"] = {s: sum(src["images"].get(s, 0) for src in sources) for s in splits}
     report["boxes"] = {
-        s: {c: sum(src["boxes"][s].get(c, 0) for src in sources) for c in classes} for s in SPLITS
+        s: {c: sum(src["boxes"].get(s, {}).get(c, 0) for src in sources) for c in classes} for s in splits
     }
     report["low_train_classes"] = [c for c in classes if report["boxes"]["train"][c] < MIN_TRAIN_BOXES]
 
@@ -888,20 +1122,26 @@ def build_report(
 def log_summary(report: dict[str, Any]) -> None:
     """Boxes per class per split; classes under MIN_TRAIN_BOXES train boxes are flagged."""
     boxes = report["boxes"]
+    splits = [s for s in ALL_SPLITS if s in SPLITS or report["images"].get(s)]
+    row = "%-16s" + " %8s" * len(splits)
     logger.info("")
-    logger.info("%-16s %8s %8s %8s", "class", *SPLITS)
+    logger.info(row, "class", *(s.replace("external_test", "external") for s in splits))
     for c in report["classes"]:
         flag = f"   <-- under {MIN_TRAIN_BOXES} train boxes" if boxes["train"][c] < MIN_TRAIN_BOXES else ""
-        logger.info("%-16s %8d %8d %8d%s", c, *(boxes[s][c] for s in SPLITS), flag)
-    logger.info("%-16s %8d %8d %8d", "TOTAL boxes", *(sum(boxes[s].values()) for s in SPLITS))
-    logger.info("%-16s %8d %8d %8d", "images", *(report["images"][s] for s in SPLITS))
+        logger.info(row + "%s", c, *(boxes.get(s, {}).get(c, 0) for s in splits), flag)
+    logger.info(row, "TOTAL boxes", *(sum(boxes.get(s, {}).values()) for s in splits))
+    logger.info(row, "images", *(report["images"].get(s, 0) for s in splits))
     logger.info("")
-    logger.info("%-22s %7s %6s %8s %8s", "source", "images", "dups", "dropped", "invalid")
+    logger.info("%-22s %7s %6s %8s %8s %7s %9s %8s", "source", "images", "dups", "dropped", "invalid",
+                "focus-", "near-dup-", "->train")
     for name, src in report["sources"].items():
         logger.info(
-            "%-22s %7d %6d %8d %8d", name, sum(src["images"].values()), src["duplicates_removed"],
-            sum(src["dropped_boxes"].values()), src["invalid_boxes"],
+            "%-22s %7d %6d %8d %8d %7d %9d %8d", name, sum(src["images"].values()), src["duplicates_removed"],
+            sum(src["dropped_boxes"].values()), src["invalid_boxes"], src.get("focus_dropped", 0),
+            src.get("near_dup_dropped", 0), src.get("near_dup_to_train", 0),
         )
+    logger.info("(focus- = left out by focus only; near-dup- = dropped as near-duplicates of held-out "
+                "images; ->train = near-duplicates of train images, put in train)")
     if report["low_train_classes"]:
         logger.warning("Classes under %d train boxes: %s", MIN_TRAIN_BOXES, ", ".join(report["low_train_classes"]))
 
@@ -965,6 +1205,7 @@ def merge(
     report = build_report(records, active, classes, stats, ratios, seed, review, sizes)
     (dataset / REPORT_FILE).write_text(json.dumps(report, indent=2))
     write_md5_index(dataset / INDEX_FILE, records)
+    save_phash_index(dataset, {f"{r.split}/{r.out_name}": r.phash for r in records})
     write_data_yaml(dataset, classes)
     log_summary(report)
 
@@ -1003,7 +1244,7 @@ def remap_source(
     records, stats = scan_sources([m], roots, target_ids)
     prefix = f"{m.short_name}_"
     merged = {
-        p.stem: p for split in SPLITS
+        p.stem: p for split in ALL_SPLITS
         for p in (dataset / "labels" / split).glob(f"{prefix}*.txt")
     }
     kept = [r for r in records if r.out_stem in merged]  # the others were duplicates
@@ -1027,6 +1268,7 @@ def append_to_dataset(
     roots: Sequence[Path], dataset: Path, new_sources: Sequence[str], build: Path, review_dir: Path,
     classes: Sequence[str], mappings: dict[str, Mapping], ratios: Sequence[float], seed: int,
     review_samples: int, max_side: int, jpeg_quality: int,
+    focus_only: Sequence[str] = (), other_share: float = OTHER_SHARE, phash_distance: int = PHASH_DISTANCE,
 ) -> dict[str, Any] | None:
     """Append to an unpacked merged dataset on the local disk. Returns the updated report,
     or None if there is nothing to do."""
@@ -1057,11 +1299,23 @@ def append_to_dataset(
     target_ids = {c: i for i, c in enumerate(classes)}
 
     records, stats = scan_sources(todo, roots, target_ids)
+    unknown = [n for n in focus_only if n not in {m.short_name for m in todo} and n not in report["sources"]]
+    if unknown:
+        raise MergeError(f"focus only lists {unknown}, which are not being appended")
+    records = apply_focus_only(records, focus_only, classes, stats, other_share, seed)
     index = load_md5_index(dataset)
+    merged_phash = load_phash_index(dataset)
     prepare_dir(build, roots)
     staging = build / "_staging"
     source_bytes, merged_bytes = copy_shrink_and_hash(records, staging, max_side, jpeg_quality)
     records = remove_duplicates(records, staging, stats, existing=index)
+    n_before = len(records)
+    records = guard_new_records(guard_against_merged(records, merged_phash, stats, phash_distance), stats, phash_distance)
+    kept_names = {r.out_name for r in records}
+    for p in staging.iterdir():
+        if p.name not in kept_names:
+            p.unlink()
+    log_near_duplicates(todo, stats, n_before - len(records), phash_distance)
     assign_splits(records, ratios, seed)
     write_dataset(records, staging, build)
     review = write_review(records, todo, classes, build, review_dir, review_samples, seed)
@@ -1086,14 +1340,27 @@ def append_to_dataset(
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "sources": [m.short_name for m in todo],
         "remapped": remaps,
-        "images": {s: sum(1 for r in records if r.split == s) for s in SPLITS},
+        "images": {s: sum(1 for r in records if r.split == s) for s in ALL_SPLITS if s in SPLITS or any(r.split == s for r in records)},
         "images_source_bytes": source_bytes,
         "images_merged_bytes": merged_bytes,
+        "max_side": max_side,
+        "focus_only": list(focus_only),
+        "other_share": other_share,
+        "phash_distance": phash_distance,
     })
     finalize_report(report)
     write_md5_index(dataset / INDEX_FILE, records, index)
+    save_phash_index(dataset, merged_phash | {f"{r.split}/{r.out_name}": r.phash for r in records})
+    write_data_yaml(dataset, classes)
     (dataset / REPORT_FILE).write_text(json.dumps(report, indent=2))
     return report
+
+
+def log_near_duplicates(sources: Sequence[Mapping], stats: dict[str, SourceStats], dropped: int, distance: int) -> None:
+    logger.info("Near-duplicate guard (pHash distance <= %d): %d new images dropped", distance, dropped)
+    for m in sources:
+        st = stats[m.short_name]
+        logger.info("  %-22s dropped %6d   moved to train %6d", m.short_name, st.near_dup_dropped, st.near_dup_to_train)
 
 
 def append(
@@ -1109,6 +1376,9 @@ def append(
     max_side: int = 1280,
     jpeg_quality: int = 90,
     sync: SyncFn = colab_sync,
+    focus_only: Sequence[str] = (),
+    other_share: float = OTHER_SHARE,
+    phash_distance: int = PHASH_DISTANCE,
 ) -> dict[str, Any] | None:
     """Add `new_sources` to the verified merged.zip and re-map merged sources whose mapping
     changed: unzip locally, append, re-zip, upload, verify. `raw` folders are searched in
@@ -1136,7 +1406,7 @@ def append(
 
     report = append_to_dataset(
         roots, dataset, new_sources, work / "build", work / "review", classes, mappings,
-        ratios, seed, review_samples, max_side, jpeg_quality,
+        ratios, seed, review_samples, max_side, jpeg_quality, focus_only, other_share, phash_distance,
     )
     if report is None:
         shutil.rmtree(work)
@@ -1168,6 +1438,10 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-side", type=int, default=1280, help="resize images to at most this many px")
     parser.add_argument("--jpeg-quality", type=int, default=90)
     parser.add_argument("--force", action="store_true", help="rebuild even if the zip is already done")
+    parser.add_argument("--focus-only", nargs="*", default=[], metavar="SOURCE",
+                        help=f"append: keep only images with {', '.join(FOCUS_CLASSES)} (+ --other-share others)")
+    parser.add_argument("--other-share", type=float, default=OTHER_SHARE)
+    parser.add_argument("--phash-distance", type=int, default=PHASH_DISTANCE)
     return parser.parse_args(argv)
 
 
@@ -1179,7 +1453,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                   jpeg_quality=args.jpeg_quality)
     try:
         if args.append:
-            append(args.raw, args.zip, args.append, **common)
+            append(args.raw, args.zip, args.append, focus_only=args.focus_only, other_share=args.other_share,
+                   phash_distance=args.phash_distance, **common)
         else:
             merge(args.raw, args.zip, force=args.force, **common)
     except MergeError as e:

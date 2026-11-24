@@ -15,7 +15,13 @@ The target (configs/default.yaml `safety_target`): for each hazard class and per
   as wrong: precision here is a lower bound.
 - The model runs once at the lowest threshold; higher thresholds drop the weaker predictions.
   That gives the same boxes as running again: NMS only lets a stronger box remove a weaker one.
-- Without --data, only the test split is extracted from merged.zip (notebook 08's helper).
+- Without --data, only the needed splits are extracted from merged.zip (notebook 08's helper).
+- **Splits** (--splits): `test` comes from the same sources as training, so it flatters the
+  model (budget_v1: cones 0.98 on test, 0 of 4 on real street photos). `external_test` is a
+  whole Roboflow source never trained on (rf_safewalk); report both.
+- **Street photos** (--street, default tests/assets/street_photos): 24 Wikimedia photos without
+  boxes, so the check is per photo: is the photo's class (expected.yaml, by file-name prefix)
+  found anywhere, and what else does the model call things in it?
 
 Writes runs/safety_report/<model>_<date>.json (--out).
 """
@@ -52,6 +58,8 @@ logger = logging.getLogger("safety_report")
 
 DEFAULT_CONFIG = ROOT / "configs" / "default.yaml"
 DRIVE_RUNS = Path("/content/drive/MyDrive/clear_vision/runs/safety_report")
+STREET_PHOTOS = ROOT / "tests" / "assets" / "street_photos"
+EXPECTED_FILE = "expected.yaml"
 SIZE_GROUPS = ("small", "medium", "large")
 MEDIUM_LARGE = "medium+large"
 
@@ -227,19 +235,68 @@ def model_label(model_path: Path) -> str:
     return model_path.parent.name if model_path.stem in ("best", "last") else model_path.stem
 
 
+# ---------------------------------------------------------------------- street photos (no boxes)
+
+def load_expected(folder: Path) -> dict[str, str]:
+    """Photo file name -> the class it shows, from expected.yaml's `prefixes` (file-name prefix
+    -> class). Photos matching no prefix are left out."""
+    prefixes: dict[str, str] = yaml.safe_load((folder / EXPECTED_FILE).read_text())["prefixes"]
+    photos = sorted(p.name for p in folder.iterdir() if p.suffix.lower() in cd.IMAGE_EXTS)
+    expected = {}
+    for name in photos:
+        match = max((p for p in prefixes if name.startswith(p)), key=len, default=None)
+        if match:
+            expected[name] = prefixes[match]
+    return expected
+
+
+def street_check(predictions: Predictions, expected: Mapping[str, str], conf: float) -> dict[str, Any]:
+    """Per photo: is its class detected anywhere at `conf`, and which other classes are.
+    Returns {"conf", "photos": [...], "classes": {cls: {"photos", "found", "other_names"}}}."""
+    photos, classes = [], {}
+    for name, cls in sorted(expected.items()):
+        dets = [d for d in predictions.get(name, ()) if d.confidence >= conf]
+        best = max((d.confidence for d in dets if d.class_name == cls), default=None)
+        others = sorted({d.class_name for d in dets if d.class_name != cls})
+        photos.append({"image": name, "expected": cls, "found": best is not None, "best_conf": best, "others": others})
+        c = classes.setdefault(cls, {"photos": 0, "found": 0, "other_names": {}})
+        c["photos"] += 1
+        c["found"] += best is not None
+        for o in others:
+            c["other_names"][o] = c["other_names"].get(o, 0) + 1
+    return {"conf": conf, "photos": photos, "classes": classes}
+
+
+def format_street_table(result: Mapping[str, Any]) -> str:
+    """class | found in photos | other names the model gave (photos)."""
+    lines = [f"street photos, conf {result['conf']:.2f}: is the photo's class found anywhere in it?",
+             f"{'class':14} {'found':>7}  other names in those photos (number of photos)"]
+    for cls, c in result["classes"].items():
+        others = ", ".join(f"{k} ({v})" for k, v in sorted(c["other_names"].items(), key=lambda kv: -kv[1]))
+        lines.append(f"{cls:14} {c['found']:>3} / {c['photos']:<2}  {others or '-'}")
+    found = sum(c["found"] for c in result["classes"].values())
+    lines.append(f"{found} of {len(result['photos'])} photos: class found")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------- report and examples
 
-def build_report(model_path: Path, imgsz: int, n_images: int, target: SafetyTarget,
-                 results: Sequence[Mapping[str, Any]], date: str) -> dict[str, Any]:
+def build_report(model_path: Path, imgsz: int, target: SafetyTarget, sections: Mapping[str, Mapping[str, Any]],
+                 date: str) -> dict[str, Any]:
+    """sections: "test" / "external_test" -> {"images": n, "thresholds": {"0.15": evaluate(), ...}},
+    "street_photos" -> {"images": n, "thresholds": {"0.15": street_check(), ...}}."""
     return {
         "model": model_label(model_path),
         "model_path": str(model_path),
         "date": date,
         "imgsz": imgsz,
-        "test_images": n_images,
         "target": asdict(target),
-        "thresholds": {f"{r['conf']:.2f}": r for r in results},
+        "sections": dict(sections),
     }
+
+
+def split_section(results: Sequence[Mapping[str, Any]], n_images: int) -> dict[str, Any]:
+    return {"images": n_images, "thresholds": {f"{r['conf']:.2f}": r for r in results}}
 
 
 def save_report(report: Mapping[str, Any], out_dir: Path) -> Path:
@@ -291,6 +348,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", type=Path, required=True, help="trained .pt (e.g. exports/budget_v1/best.pt)")
     ap.add_argument("--data", type=Path, help="data.yaml of an extracted test split (skips merged.zip)")
+    ap.add_argument("--splits", nargs="+", default=["test", "external_test"],
+                    help="splits to score (a split missing from the data is skipped)")
+    ap.add_argument("--street", type=Path, default=STREET_PHOTOS, help="street photos with expected.yaml; '' = skip")
     ap.add_argument("--zip", type=Path, default=cd.DRIVE_ZIP, help="merged.zip to extract the test split from")
     ap.add_argument("--dest", type=Path, default=cd.TEST_DEST, help="where the test split is extracted")
     ap.add_argument("--imgsz", type=int, help="default: metrics.json next to the model, else 512")
@@ -306,21 +366,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     target = load_target(args.config)
     names = load_class_names(ROOT / "configs" / "classes.yaml")
-    data_yaml = args.data or cd.extract_test_split(args.zip, args.dest, names)
-    root = Path(yaml.safe_load(data_yaml.read_text()).get("path", data_yaml.parent))
-    pairs = cd.load_split(data_yaml, "test", args.max_images)
-    if not pairs:
-        logger.error("no test images under %s", root)
-        return 2
+    data_yaml = args.data or cd.extract_test_split(args.zip, args.dest, names, args.splits)
+    data = yaml.safe_load(data_yaml.read_text())
+    root = Path(data.get("path", data_yaml.parent))
     imgsz = args.imgsz or me.read_imgsz(args.model.parent / "metrics.json")
-    logger.info("%d test images, imgsz %d, thresholds %s", len(pairs), imgsz, target.conf_levels)
-    gt = load_ground_truth(pairs, names, root)
-    preds = predict(args.model, [img for img, _ in pairs], root, names, min(target.conf_levels), imgsz,
-                    device=args.device)
-    results = [evaluate(preds, gt, target, conf) for conf in target.conf_levels]
-    for r in results:
-        print("\n" + format_table(r, target))
-    report = build_report(args.model, imgsz, len(pairs), target, results, dt.date.today().isoformat())
+    low = min(target.conf_levels)
+    sections: dict[str, dict[str, Any]] = {}
+    for split in args.splits:
+        if split not in data:
+            logger.warning("%s: not in %s, skipped", split, data_yaml)
+            continue
+        pairs = cd.load_split(data_yaml, split, args.max_images)
+        logger.info("%s: %d images, imgsz %d, thresholds %s", split, len(pairs), imgsz, target.conf_levels)
+        gt = load_ground_truth(pairs, names, root)
+        preds = predict(args.model, [img for img, _ in pairs], root, names, low, imgsz, device=args.device)
+        results = [evaluate(preds, gt, target, conf) for conf in target.conf_levels]
+        for r in results:
+            print(f"\n[{split}] " + format_table(r, target))
+        sections[split] = split_section(results, len(pairs))
+    if args.street and str(args.street):
+        expected = load_expected(args.street)
+        preds = predict(args.model, [args.street / n for n in expected], args.street, names, low, imgsz,
+                        device=args.device)
+        street = [street_check(preds, expected, conf) for conf in target.conf_levels]
+        for r in street:
+            print("\n" + format_street_table(r))
+        sections["street_photos"] = split_section(street, len(expected))
+    if not sections:
+        logger.error("nothing to score")
+        return 2
+    report = build_report(args.model, imgsz, target, sections, dt.date.today().isoformat())
     print(f"\nWrote {save_report(report, args.out)}")
     return 0
 

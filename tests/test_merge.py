@@ -372,6 +372,9 @@ def test_real_mapping_files_are_valid() -> None:
 
 def run_append(tmp_path: Path, sources: list[str], mappings: Path, **kwargs) -> dict | None:
     kwargs.setdefault("sync", no_sync)
+    # The tiny synthetic fixtures all have the same pHash, so the near-duplicate guard would
+    # drop every new image. It is off here and tested on real photos in test_merge_v2.py.
+    kwargs.setdefault("phash_distance", -1)
     return append(
         raw=[ASSETS / "new_raw", ASSETS / "raw"],
         zip_path=zip_of(tmp_path),

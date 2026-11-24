@@ -1,7 +1,7 @@
 """Turn a folder of photos into a slideshow video (each photo shown for a few seconds).
 
-    python scripts/make_photo_video.py data/street_photos street.mp4        # 24 photos -> 48 s
-    python scripts/make_photo_video.py data/street_photos street.mp4 --seconds 3
+    python scripts/make_photo_video.py tests/assets/street_photos street.mp4        # 24 photos -> 48 s
+    python scripts/make_photo_video.py tests/assets/street_photos street.mp4 --seconds 3
 
 Used for repeatable checks: play it full screen on the Mac and point the phone at it, or
 feed it to scripts/replay.py. Photos are letterboxed (black bars) into the frame size,

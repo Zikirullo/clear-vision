@@ -16,6 +16,10 @@ short spoken messages (vibration later).
   with `src/colab_data.py` `prepare_dataset()`, never from a folder of files on Drive.
 - Notebook 03 writes `train_balanced.txt` + `data_balanced.yaml` next to the zip; training
   applies them after `prepare_dataset()` with `apply_balanced()`.
+- New sources are added with notebook 02's append mode (focus only, pHash leakage guard).
+  rf_safewalk is held out whole as the `external_test` split, never trained on. Notebook 10
+  (`scripts/safety_report.py`) reports `test`, `external_test` and the 24 real street photos
+  in `tests/assets/street_photos/` separately. Judge a model by the last two.
 
 **Local (MacBook, VS Code):** the real-time app in `src/`. This covers camera
 capture, ONNX Runtime inference, navigation logic, audio output and latency tests.
@@ -109,5 +113,5 @@ needs numpy < 2.4 and torch 2.7; see `requirements-export.txt`):
 ```bash
 /opt/homebrew/bin/python3.11 -m venv .venv-export
 .venv-export/bin/python -m pip install --only-binary=:all: -r requirements-export.txt
-.venv-export/bin/python scripts/export_coreml.py --run budget_v1 --images data/street_photos
+.venv-export/bin/python scripts/export_coreml.py --run budget_v1 --images tests/assets/street_photos
 ```

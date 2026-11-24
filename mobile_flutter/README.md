@@ -151,12 +151,14 @@ from `configs/default.yaml` in the repo, through `assets/nav_config.json`.
 
 1. On the Mac, make the 48 s video of the 24 street photos and play it full screen:
    ```bash
-   python scripts/make_photo_video.py data/street_photos street.mp4
+   python scripts/make_photo_video.py tests/assets/street_photos street.mp4
    open street.mp4
    ```
 2. Hold the iPhone so the video fills most of the camera picture. Triple-tap for the debug
    view: FPS should be 15 or more.
 3. Expect warnings for stairs, potholes, manholes, a curb and "Obstacle" for the posts.
+   (`python scripts/safety_report.py` also checks these photos per class: budget_v1 found
+   the class in 12 of 24, with no cones and only 1 of 4 poles.)
    For reference, the Mac replay of the same video (`python scripts/replay.py street.mp4
    --backend finetuned`) says: Fire hydrant, Obstacle (×2), Car, Manhole (×4), Stairs (×2),
    Pothole (×2), Fire hydrant (×2), Curb, Truck. Through a phone camera pointed at a screen,

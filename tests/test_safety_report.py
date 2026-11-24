@@ -145,12 +145,14 @@ def test_model_label() -> None:
 
 def test_report_json_name_and_content(tmp_path: Path) -> None:
     results = [sr.evaluate(PREDS, GT, TARGET, c) for c in TARGET.conf_levels]
-    report = sr.build_report(Path("exports/budget_v1/best.pt"), 512, 3, TARGET, results, "2026-11-24")
+    sections = {"test": sr.split_section(results, 3)}
+    report = sr.build_report(Path("exports/budget_v1/best.pt"), 512, TARGET, sections, "2026-11-24")
     path = sr.save_report(report, tmp_path / "safety_report")
     assert path.name == "budget_v1_2026-11-24.json"
     saved = json.loads(path.read_text())
-    assert set(saved["thresholds"]) == {"0.15", "0.25"} and saved["imgsz"] == 512
-    assert saved["thresholds"]["0.15"]["classes"]["curb"]["pass"] is False
+    test = saved["sections"]["test"]
+    assert set(test["thresholds"]) == {"0.15", "0.25"} and saved["imgsz"] == 512 and test["images"] == 3
+    assert test["thresholds"]["0.15"]["classes"]["curb"]["pass"] is False
 
 
 def test_ground_truth_from_label_files(tmp_path: Path) -> None:
@@ -180,3 +182,29 @@ def test_draw_miss_marks_the_box_in_red() -> None:
     assert out.shape == image.shape and image.max() == 0  # the input is not changed
     assert tuple(out[80, 100]) == (255, 0, 0)  # top edge of the missed box, RGB red
     assert tuple(out[50, 100]) == tuple(int(v) for v in cv2.cvtColor(np.uint8([[[0, 220, 255]]]), cv2.COLOR_BGR2RGB)[0, 0])
+
+
+# ---------------------------------------------------------------------- street photos
+
+def test_street_photos_expected_classes() -> None:
+    expected = sr.load_expected(sr.STREET_PHOTOS)
+    assert len(expected) == 24
+    counts = {c: list(expected.values()).count(c) for c in set(expected.values())}
+    assert counts == {"bollard": 4, "manhole": 4, "stairs": 4, "pothole": 4, "traffic_cone": 4, "pole": 4}
+
+
+def test_street_check_per_photo_and_other_names() -> None:
+    expected = {"cone1.jpg": "traffic_cone", "cone2.jpg": "traffic_cone", "pole1.jpg": "pole"}
+    preds = {
+        "cone1.jpg": [d("traffic_cone", 0.20, MEDIUM), d("fire_hydrant", 0.6, LARGE)],
+        "cone2.jpg": [d("fire_hydrant", 0.7, LARGE)],
+        "pole1.jpg": [d("pole", 0.9, MEDIUM)],
+    }
+    low = sr.street_check(preds, expected, 0.15)
+    assert low["classes"]["traffic_cone"] == {"photos": 2, "found": 1, "other_names": {"fire_hydrant": 2}}
+    assert low["photos"][0] == {"image": "cone1.jpg", "expected": "traffic_cone", "found": True,
+                                "best_conf": 0.20, "others": ["fire_hydrant"]}
+    high = sr.street_check(preds, expected, 0.25)
+    assert high["classes"]["traffic_cone"]["found"] == 0 and high["classes"]["pole"]["found"] == 1
+    table = sr.format_street_table(low)
+    assert "traffic_cone     1 / 2   fire_hydrant (2)" in table and "2 of 3 photos" in table

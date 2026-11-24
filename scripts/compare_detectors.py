@@ -201,50 +201,52 @@ def ap50_per_class(
     return result
 
 
-def extract_test_split(zip_path: Path = DRIVE_ZIP, dest: Path = TEST_DEST, class_names: Sequence[str] | None = None) -> Path:
-    """Extract only data.yaml, images/test/ and labels/test/ from merged.zip and
-    write `dest/data.yaml` pointing at them. Returns the data.yaml path.
+def extract_test_split(
+    zip_path: Path = DRIVE_ZIP, dest: Path = TEST_DEST, class_names: Sequence[str] | None = None,
+    splits: Sequence[str] = ("test",),
+) -> Path:
+    """Extract only data.yaml and images/<split>/ + labels/<split>/ of each split in `splits`
+    (default: test; add "external_test" for the held-out source) from merged.zip, and write
+    `dest/data.yaml` pointing at them. Returns the data.yaml path.
 
     Requires merged.done next to the zip. Reuses an earlier extraction from the
-    same zip. Fails if the zip's class names differ from `class_names`, since the
-    label IDs would then mean different classes.
+    same zip with the same splits. Fails if the zip's class names differ from `class_names`,
+    since the label IDs would then mean different classes. A split the zip lacks is skipped.
     """
     done = zip_path.with_suffix(".done")
     if not done.exists():
         raise RuntimeError(f"{done} is missing: {zip_path.name} was never verified. Run notebook 02 first.")
     info = json.loads(done.read_text())
+    wanted = {"done": info, "splits": sorted(splits)} if tuple(splits) != ("test",) else info
     marker = dest / EXTRACTED
     data_yaml = dest / "data.yaml"
-    if marker.exists() and json.loads(marker.read_text()) == info and data_yaml.exists():
+    if marker.exists() and json.loads(marker.read_text()) == wanted and data_yaml.exists():
         logger.info("%s already extracted from this zip, reusing it", dest)
     else:
         dest.mkdir(parents=True, exist_ok=True)
         t0 = time.time()
+        prefixes = tuple(f"{kind}/{s}/" for s in splits for kind in ("images", "labels"))
         with zipfile.ZipFile(zip_path) as zf:
-            members = [
-                m for m in zf.namelist()
-                if m == "data.yaml" or m.startswith(("images/test/", "labels/test/"))
-            ]
+            members = [m for m in zf.namelist() if m == "data.yaml" or m.startswith(prefixes)]
             if "data.yaml" not in members:
                 raise RuntimeError(f"{zip_path} has no data.yaml at its root")
             for m in members:
                 zf.extract(m, dest)
-        n_images = sum(1 for m in members if m.startswith("images/test/") and not m.endswith("/"))
-        logger.info("Extracted %d test images from %s in %.0fs", n_images, zip_path.name, time.time() - t0)
-        marker.write_text(json.dumps(info))
+        for s in splits:
+            n_images = sum(1 for m in members if m.startswith(f"images/{s}/") and not m.endswith("/"))
+            logger.info("Extracted %d %s images from %s in %.0fs", n_images, s, zip_path.name, time.time() - t0)
+        marker.write_text(json.dumps(wanted))
 
     data = yaml.safe_load(data_yaml.read_text())
     zip_names = list(data["names"].values()) if isinstance(data["names"], dict) else list(data["names"])
     names = list(class_names) if class_names is not None else zip_names
     if zip_names != names:
         raise RuntimeError(f"merged.zip classes {zip_names} differ from configs/classes.yaml {names}")
-    data_yaml.write_text(yaml.safe_dump({
-        "path": str(dest.absolute()),
-        "train": "images/test",
-        "val": "images/test",
-        "test": "images/test",
-        "names": dict(enumerate(names)),
-    }, sort_keys=False))
+    out: dict[str, Any] = {"path": str(dest.absolute()), "train": "images/test", "val": "images/test",
+                           "test": "images/test"}
+    out |= {s: f"images/{s}" for s in splits if s != "test" and (dest / "images" / s).is_dir()}
+    out["names"] = dict(enumerate(names))
+    data_yaml.write_text(yaml.safe_dump(out, sort_keys=False))
     return data_yaml
 
 

@@ -13,3 +13,9 @@ roboflow:
   - {name: rf_manhole, workspace: workspace-an3qw, project: manhole-j9klz, version: 2}
   - {name: rf_sidewalk, workspace: scottsdale, project: sidewalk-otzhb, version: 1}
   - {name: rf_barricade, workspace: myplace-65bsf, project: barricade-detection-kaaty, version: 10}
+  # v2 (2026-11-24): the weakest hazards (curb, stairs, pothole, pole, manhole). All CC BY 4.0.
+  # Versions were the latest on 2026-11-18. Appended with notebook 02 (APPEND, focus only).
+  - {name: rf_freesight, workspace: kaan-bisfl, project: freesight-akli2, version: 1}           # ~21k: Curb, Stairs, Pole, crosswalk, People
+  - {name: rf_neytra, workspace: jeet-xlgwq, project: neytra-v3-sxshi, version: 4}             # ~17k: manhole, pothole, curb, staircase, bollard, traffic cone
+  - {name: rf_safewalk, workspace: safewalkbd-7jrsx, project: safewalkbd-final, version: 31}   # ~27k: Pole, Pothole, Stairs, Crosswalk, Road-barrier. EXTERNAL TEST only
+  - {name: rf_drone_obstacles, workspace: droneobstacles-bvrmw, project: drone-obstacles-acuxy, version: 4}  # ~11k: curb, stairs, manhole, pole, fence

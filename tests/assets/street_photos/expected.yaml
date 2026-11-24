@@ -1,0 +1,10 @@
+# What each street photo shows, by file-name prefix (scripts/safety_report.py load_expected).
+# The photos have no boxes: the safety report checks per photo whether this class is found
+# anywhere, and lists the other names the model gives (e.g. "fire_hydrant" on a bollard).
+prefixes:
+  bollards_sidewalk_: bollard
+  manhole_cover_: manhole
+  outdoor_stairs_: stairs
+  pothole_road_: pothole
+  traffic_cones_: traffic_cone
+  utility_pole_: pole

@@ -39,6 +39,13 @@ SIZES = ("small", "medium", "large")
 MIN_TRAIN_BOXES = 300
 FOCUS_CLASSES = ("curb", "pothole", "barrier", "crosswalk", "manhole", "pole", "bollard",
                  "scooter", "fire_hydrant", "bus")
+# v2 priority (weakest hazards in the safety report and on real street photos): repeated at
+# least PRIORITY_REPEAT[0] and at most PRIORITY_REPEAT[1] times, whatever their count.
+PRIORITY_CLASSES = ("curb", "stairs", "pothole", "pole", "manhole", "traffic_cone", "bollard")
+PRIORITY_REPEAT = (2, 6)
+# Sources whose images of a class get no extra repeats for it: rf_cone is a general cone
+# dataset (sports cones, close-up product photos), not street cones on a sidewalk.
+NO_REPEAT_SOURCES: dict[str, tuple[str, ...]] = {"traffic_cone": ("rf_cone",)}
 BALANCED_TXT = "train_balanced.txt"
 BALANCED_YAML = "data_balanced.yaml"
 LOCAL_DATASET = "/content/datasets/merged"
@@ -303,35 +310,43 @@ def sanity_checks(
 
 def repeat_factors(
     scan: Scan, focus: Sequence[str] = FOCUS_CLASSES, max_repeat: int = 4, target_images: int | None = None,
+    priority: Sequence[str] = (), priority_repeat: tuple[int, int] = PRIORITY_REPEAT,
 ) -> tuple[dict[str, int], int]:
     """Repeat factor per focus class: ceil(target / train images with the class), clamped
-    to 1..max_repeat. `target` defaults to the median train images per class (all classes).
-    Returns (factors, target)."""
+    to 1..max_repeat. Priority classes are clamped to priority_repeat instead (so they are
+    repeated even when common). `target` defaults to the median train images per class
+    (all classes). Returns (factors, target)."""
     per_class = Counter(c for (split, _), cs in scan.image_classes.items() if split == "train" for c in cs)
     counts = [per_class.get(i, 0) for i in range(len(scan.classes))]
     target = target_images if target_images is not None else int(np.median(counts)) if counts else 0
     factors = {}
-    for name in focus:
+    for name in dict.fromkeys([*focus, *priority]):
         if name not in scan.classes:
             raise ValueError(f"Focus class {name!r} is not in the class list")
         n = per_class.get(scan.classes.index(name), 0)
-        factors[name] = 1 if n == 0 else max(1, min(max_repeat, math.ceil(target / n)))
+        low, high = priority_repeat if name in priority else (1, max_repeat)
+        factors[name] = 1 if n == 0 else max(low, min(high, math.ceil(target / n)))
     return factors, target
 
 
 def balanced_train(
     scan: Scan, focus: Sequence[str] = FOCUS_CLASSES, max_repeat: int = 4, person_cap: int = 4000,
-    target_images: int | None = None, seed: int = 42,
+    target_images: int | None = None, seed: int = 42, priority: Sequence[str] = (),
+    priority_repeat: tuple[int, int] = PRIORITY_REPEAT,
+    no_repeat_sources: dict[str, Sequence[str]] | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Lines of train_balanced.txt ("./images/train/<name>", relative to the dataset root;
     an image repeated k times is listed k times) and a summary.
 
-    - An image with a focus class is repeated by the largest factor of its focus classes.
+    - An image with a focus or priority class is repeated by the largest factor of its
+      classes. A class gives no repeat to images from its `no_repeat_sources`.
     - Person-only images (every box is a person) are randomly capped at `person_cap`.
     - Every other image (background images too) is listed once.
     """
-    factors, target = repeat_factors(scan, focus, max_repeat, target_images)
+    factors, target = repeat_factors(scan, focus, max_repeat, target_images, priority, priority_repeat)
     focus_ids = {scan.classes.index(c): f for c, f in factors.items()}
+    no_repeat = {scan.classes.index(c): set(srcs) for c, srcs in (no_repeat_sources or {}).items() if c in scan.classes}
+    source_of_image = {b.image: b.source for b in scan.boxes if b.split == "train"}
     person = scan.classes.index("person") if "person" in scan.classes else None
 
     person_only = [n for n in scan.images["train"] if person is not None and scan.image_classes[("train", n)] == {person}]
@@ -343,7 +358,10 @@ def balanced_train(
         if name in dropped:
             continue
         present = scan.image_classes[("train", name)]
-        repeats[name] = max([focus_ids[c] for c in present if c in focus_ids], default=1)
+        source = source_of_image.get(name, "")
+        repeats[name] = max(
+            [focus_ids[c] for c in present if c in focus_ids and source not in no_repeat.get(c, ())], default=1
+        )
     lines = [f"./images/train/{name}" for name in sorted(repeats) for _ in range(repeats[name])]
 
     boxes_before = Counter(scan.classes[b.cls] for b in scan.boxes if b.split == "train")
@@ -359,6 +377,9 @@ def balanced_train(
         "target_images": target,
         "factors": factors,
         "max_repeat": max_repeat,
+        "priority": list(priority),
+        "priority_repeat": list(priority_repeat),
+        "no_repeat_sources": {c: list(v) for c, v in (no_repeat_sources or {}).items()},
         "person_cap": person_cap,
         "person_only_images": len(person_only),
         "person_only_dropped": len(dropped),
@@ -390,8 +411,9 @@ def write_balanced(
         "nc": len(classes),
         "names": list(classes),
         "merged_done": merged_done,
-        "balance": {k: summary[k] for k in ("target_images", "factors", "max_repeat", "person_cap",
-                                            "person_only_dropped", "lines")},
+        "balance": {k: summary[k] for k in ("target_images", "factors", "max_repeat", "priority",
+                                            "priority_repeat", "no_repeat_sources", "person_cap",
+                                            "person_only_dropped", "lines") if k in summary},
     }
     yml.write_text(
         "# Written by notebooks/03_dataset_report.ipynb. Apply with src/colab_data.py apply_balanced()\n"

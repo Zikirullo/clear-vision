@@ -192,3 +192,20 @@ def test_counts_table_lists_fps_and_classes() -> None:
     results = {"openvocab": {"frames": 2, "fps": 9.5, "mean_ms": 105, "max_ms": 130, "counts": {"pole": 3}}}
     table = cd.format_counts_table(results)
     assert "9.5" in table and "* pole" in table
+
+
+def test_extract_external_test_split_too(tmp_path: Path) -> None:
+    zip_path = make_zip(tmp_path)
+    with zipfile.ZipFile(zip_path, "a") as zf:
+        zf.writestr("images/external_test/e_0.jpg", b"x")
+        zf.writestr("labels/external_test/e_0.txt", "1 0.5 0.5 0.2 0.2\n")
+    zip_path.with_suffix(".done").write_text(json.dumps({"zip_bytes": zip_path.stat().st_size}))
+    dest = tmp_path / "merged_test"
+    data_yaml = cd.extract_test_split(zip_path, dest, CLASSES, splits=("test", "external_test"))
+    data = yaml.safe_load(data_yaml.read_text())
+    assert data["external_test"] == "images/external_test"
+    assert [p for p, _ in cd.load_split(data_yaml, "external_test")] == [dest / "images/external_test/e_0.jpg"]
+    assert not (dest / "images" / "train").exists()
+    # Asking for test only afterwards extracts again (different splits), without external_test in data.yaml.
+    data_yaml = cd.extract_test_split(zip_path, dest, CLASSES)
+    assert "external_test" not in yaml.safe_load(data_yaml.read_text())
