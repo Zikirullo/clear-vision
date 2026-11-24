@@ -5,6 +5,48 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: safety report (recall by object size against the proposed safety target) (2026-11-24)
+
+- Why: mAP doesn't say whether a model is safe to walk with. The proposed target: for each
+  hazard class (curb, stairs, pothole, pole, manhole, bollard, barrier, traffic_cone,
+  scooter, crosswalk) and person, find at least 90% of the medium and large objects.
+- `scripts/safety_report.py` (pure functions + CLI):
+  - Matching: same class, IoU >= 0.5, each ground-truth box found once, highest
+    confidence first (as notebook 08's mAP).
+  - Size groups by box area share: small < 1% (far), medium 1-5%, large > 5% (close).
+  - Recall per group + medium+large, precision per class, PASS if medium+large recall
+    >= 0.90 ("no data" when a class has no medium/large boxes).
+  - Runs the model once at the lowest threshold (0.15) and drops weaker predictions for
+    0.25. Same boxes as a second run, since NMS only lets a stronger box remove a weaker one.
+  - Test split from merged.zip with notebook 08's `extract_test_split`; imgsz from
+    `metrics.json` next to the model (`mobile_export.read_imgsz`).
+  - JSON to `runs/safety_report/<model>_<date>.json` (model = run folder for best.pt).
+    It includes every medium/large miss.
+  - `draw_miss`: missed box red, the model's predictions yellow with names. That shows
+    hazards found as the wrong class.
+- `configs/default.yaml`: new `safety_target` section (classes, conf levels 0.15/0.25,
+  IoU, size limits, 0.90).
+- `notebooks/10_safety_report.ipynb`: header like notebooks 02/07, the fixed Kaggle check
+  (env vars, asserted against `is_kaggle()`), all imports in Setup, T4 metadata. Settings:
+  `MODEL_PATH` (default `exports/budget_v1/best.pt`). One table per threshold, saves the
+  JSON, then 8 missed medium/large examples per failing class (at 0.15).
+- Tested:
+  - `tests/test_safety_report.py` (16) uses a fake split and fake predictions. It covers size
+    boundaries, the IoU cut-off, duplicates as false positives, best-overlap matching,
+    recall/precision at both thresholds, misses only medium/large, no-data, PASS at exactly
+    0.90, small misses not failing a class, the table, config values, the JSON name and
+    content, label files, example picking and drawing.
+  - The tests caught `pick_misses` collapsing equal misses; fixed.
+  - `pytest`: 328 passed. `flutter test`: 55 passed (unchanged).
+  - Smoke test on the Mac: the CLI and the notebook's cells 2-6 ran with the real budget_v1
+    model on 3 street photos with fake labels (imgsz 512 read from metrics.json). The plot
+    was checked by eye.
+- Not tested: a real run on the merged test split (Colab/Drive only), so budget_v1's
+  actual numbers are not known yet. Not run on Kaggle. Precision is a lower bound because
+  sources label only their own classes.
+
+---
+
 ## feat: Flutter phone app (iPhone first, Android ready) with the Dart port of the rules (2026-11-21)
 
 - Why: run Clear Vision on the user's iPhone with the same rules as the Mac app.

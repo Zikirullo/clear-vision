@@ -217,3 +217,11 @@ mobile:                      # phone app (mobile_flutter/), exported to models/n
 speaker:
   rate: 220                  # words per minute
   backend: auto              # auto | pyttsx3 | say (auto = `say` on macOS, pyttsx3 elsewhere)
+
+safety_target:               # proposed safety target, measured by scripts/safety_report.py (notebook 10)
+  classes: [curb, stairs, pothole, pole, manhole, bollard, barrier, traffic_cone, scooter, crosswalk, person]
+  conf_levels: [0.15, 0.25]  # detection thresholds to report (0.15 = what the phone's Core ML NMS keeps)
+  iou: 0.5                   # a prediction finds a ground-truth box of the same class at this IoU or more
+  small_max: 0.01            # box area < 1% of the image = small (far away)
+  large_min: 0.05            # box area > 5% = large (close); in between = medium
+  min_recall: 0.90           # PASS = medium+large recall at least this
