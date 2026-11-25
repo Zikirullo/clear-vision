@@ -5,6 +5,37 @@ What was done before each commit, newest first. Add a new entry before every com
 
 ---
 
+## feat: VERIFY_ONLY in notebook 02 for an upload that stopped before merged.done (2026-11-25)
+
+- Why: the v2 append stopped during verification. `merged.zip` (7.91 GB, uploaded
+  2026-11-24 04:22 UTC) and `merge_report.json` were on Drive, but `merged.done` was
+  missing, so training refuses the zip.
+- `scripts/merge_datasets.py`:
+  - `verify_existing(zip, work)`: flushes Drive, copies the zip to the local disk and
+    compares sizes, then runs `testzip()`, the CRC of every member.
+  - It checks `data.yaml` is present, and that the `merge_report.json` inside the zip
+    equals the one on Drive.
+  - It counts images and label files per split (train, val, test, external_test) and per
+    source (file-name prefix, `negatives` included). It compares them with the report and
+    flags images without labels, labels without images, unknown sources and a
+    `phash_index.json` mismatch.
+  - Writes `merged.done` (same fields, via the new `done_info()` that `publish_zip` now uses
+    too) only when there are no problems; never overwrites an existing one. CLI:
+    `--verify-only` (`--raw` not needed).
+- Notebook 02: `VERIFY_ONLY = False` setting. When True it skips downloads, the FiftyOne
+  install and the merge, verifies, and raises if it fails. The section 3 text explains how
+  to go back to the previous zip with Drive's version history.
+- Tested:
+  - 6 new tests in `tests/test_merge.py`: the done content matches a normal run and
+    `prepare_dataset` accepts it; a corrupt member, a truncated zip, report counts that
+    differ and a missing image are each rejected with no done written; member counting.
+  - Verify runs after the v2 real-photo appends: external_test and negatives counts.
+  - `pytest`: 367 passed.
+- Not tested: the real 7.91 GB zip (Colab only). Copy plus CRC test reads it twice, which
+  is probably 10-20 minutes in Colab.
+
+---
+
 ## feat: screen the COCO negatives with budget_v1 and top up to ~3,000 (2026-11-24)
 
 - Why: a "negative" with unlabeled stairs, a curb or a pole would teach v2 to ignore real

@@ -1028,17 +1028,175 @@ def publish_zip(
     sync()
     verify_zip(target.zip, zip_size, n_files)
 
-    info = {
-        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "zip_bytes": zip_size,
-        "files": n_files,
-        "images": report["images"],
-        "drive_free_bytes": free_space(target.zip.parent),
-    }
+    info = done_info(target.zip, n_files, report["images"])
     target.done.write_text(json.dumps(info, indent=2))
     local_zip.unlink()
     logger.info("Verified %s (%s). Drive space left: %s", target.zip, gb(zip_size), gb(info["drive_free_bytes"]))
     return info
+
+
+def done_info(zip_path: Path, n_files: int, images: dict[str, int]) -> dict[str, Any]:
+    """merged.done's content: what a verified upload looks like (prepare_dataset checks zip_bytes)."""
+    return {
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "zip_bytes": zip_path.stat().st_size,
+        "files": n_files,
+        "images": images,
+        "drive_free_bytes": free_space(zip_path.parent),
+    }
+
+
+def source_prefix(stem: str, sources: Iterable[str]) -> str | None:
+    """Merged files are named <source>_<stem>; the longest matching source wins."""
+    for name in sorted(sources, key=len, reverse=True):
+        if stem.startswith(name + "_"):
+            return name
+    return None
+
+
+def count_zip_members(names: Iterable[str], sources: Iterable[str]) -> dict[str, Any]:
+    """Images and label files per split and per source in a merged zip's member list."""
+    images: Counter = Counter()
+    labels: Counter = Counter()
+    per_source: dict[str, Counter] = defaultdict(Counter)
+    image_stems: dict[str, set[str]] = defaultdict(set)
+    label_stems: dict[str, set[str]] = defaultdict(set)
+    unknown: list[str] = []
+    for name in names:
+        parts = name.split("/")
+        if len(parts) != 3 or parts[0] not in ("images", "labels") or not parts[2]:
+            continue
+        kind, split, file = parts
+        stem, ext = os.path.splitext(file)
+        if kind == "images" and ext.lower() in IMAGE_EXTS:
+            images[split] += 1
+            image_stems[split].add(stem)
+            src = source_prefix(stem, sources)
+            if src is None:
+                unknown.append(name)
+            else:
+                per_source[src][split] += 1
+        elif kind == "labels" and ext == ".txt":
+            labels[split] += 1
+            label_stems[split].add(stem)
+    return {
+        "images": dict(images), "labels": dict(labels), "sources": {k: dict(v) for k, v in per_source.items()},
+        "unlabeled": {s: sorted(image_stems[s] - label_stems[s]) for s in image_stems if image_stems[s] - label_stems[s]},
+        "orphan_labels": {s: sorted(label_stems[s] - image_stems[s]) for s in label_stems if label_stems[s] - image_stems[s]},
+        "unknown_source": unknown,
+    }
+
+
+def compare_with_report(counts: dict[str, Any], report: dict[str, Any]) -> list[str]:
+    """Problems (empty = all match) between counted zip members and merge_report.json."""
+    problems = []
+    splits = sorted(set(ALL_SPLITS) | set(counts["images"]) | set(report.get("images", {})),
+                    key=lambda s: (ALL_SPLITS + (s,)).index(s))
+    for split in splits:
+        found, expected = counts["images"].get(split, 0), report.get("images", {}).get(split, 0)
+        if found != expected:
+            problems.append(f"{split}: {found} images in the zip, merge_report.json says {expected}")
+        if counts["labels"].get(split, 0) != found:
+            problems.append(f"{split}: {counts['labels'].get(split, 0)} label files for {found} images")
+    for source, entry in report.get("sources", {}).items():
+        for split in sorted(set(entry.get("images", {})) | set(counts["sources"].get(source, {}))):
+            found = counts["sources"].get(source, {}).get(split, 0)
+            expected = entry.get("images", {}).get(split, 0)
+            if found != expected:
+                problems.append(f"source {source}, {split}: {found} images in the zip, report says {expected}")
+    for source in sorted(set(counts["sources"]) - set(report.get("sources", {}))):
+        problems.append(f"source {source}: in the zip but not in merge_report.json")
+    for split, stems in counts["unlabeled"].items():
+        problems.append(f"{split}: {len(stems)} images without a label file, e.g. {stems[0]}")
+    for split, stems in counts["orphan_labels"].items():
+        problems.append(f"{split}: {len(stems)} label files without an image, e.g. {stems[0]}")
+    if counts["unknown_source"]:
+        problems.append(f"{len(counts['unknown_source'])} images match no source, e.g. {counts['unknown_source'][0]}")
+    return problems
+
+
+def verify_existing(zip_path: Path | str, work: Path | str = DEFAULT_WORK, sync: SyncFn = colab_sync) -> dict[str, Any]:
+    """Check a merged.zip whose upload was not verified (merged.done missing), and write
+    merged.done only if everything matches.
+
+    1. Copies the zip to `work` (local disk) and tests the CRC of every member.
+    2. Counts images and label files per split and per source (file-name prefix) and
+       compares them with merge_report.json next to the zip, and with the copy inside the zip.
+    3. All good: writes merged.done like a successful run. Otherwise logs the problems and
+       writes nothing.
+    Returns {"ok", "problems", "counts", "done"}.
+    """
+    target, work = ZipTarget(Path(zip_path)), Path(work)
+    for path in (target.zip, target.report):
+        if not path.exists():
+            raise MergeError(f"{path} not found")
+    if target.done.exists():
+        logger.info("%s already exists; checking anyway, it will not be rewritten", target.done.name)
+    sync()  # make sure Drive shows the finished upload, not a cached partial file
+    work.mkdir(parents=True, exist_ok=True)
+    local = work / "merged_verify.zip"
+    copy_with_progress(target.zip, local)
+    problems: list[str] = []
+    counts: dict[str, Any] = {}
+    try:
+        if local.stat().st_size != target.zip.stat().st_size:
+            problems.append(f"copy is {gb(local.stat().st_size)}, Drive file is {gb(target.zip.stat().st_size)}")
+        report = json.loads(target.report.read_text())
+        try:
+            with zipfile.ZipFile(local) as zf:
+                names = zf.namelist()
+                logger.info("Testing the CRC of %d files (reads the whole zip)...", len(names))
+                bad = zf.testzip()
+                inner = json.loads(zf.read(REPORT_FILE)) if REPORT_FILE in names else None
+                if PHASH_FILE in names:
+                    phash_keys = set(json.loads(zf.read(PHASH_FILE)))
+                else:
+                    phash_keys = None
+        except zipfile.BadZipFile as e:
+            problems.append(f"not a readable zip ({e}): the upload is incomplete")
+            names, bad, inner, phash_keys = [], None, None, None
+        if bad is not None:
+            problems.append(f"corrupt member (CRC mismatch): {bad}")
+        if names:
+            if "data.yaml" not in names:
+                problems.append("data.yaml missing")
+            if inner is None:
+                problems.append(f"{REPORT_FILE} missing inside the zip")
+            elif inner != report:
+                problems.append(f"{REPORT_FILE} inside the zip differs from the one next to it on Drive")
+            counts = count_zip_members(names, report.get("sources", {}))
+            problems += compare_with_report(counts, report)
+            image_keys = {n.split("/", 1)[1] for n in names
+                          if n.startswith("images/") and os.path.splitext(n)[1].lower() in IMAGE_EXTS}
+            if phash_keys is not None and phash_keys != image_keys:
+                problems.append(f"{PHASH_FILE} lists {len(phash_keys)} images, the zip has {len(image_keys)}")
+            log_counts(counts)
+    finally:
+        local.unlink(missing_ok=True)
+
+    if problems:
+        logger.error("VERIFICATION FAILED, %s was NOT written:", target.done.name)
+        for p in problems:
+            logger.error("  - %s", p)
+        return {"ok": False, "problems": problems, "counts": counts, "done": None}
+    info = None
+    if not target.done.exists():
+        info = done_info(target.zip, len(names), report["images"])
+        target.done.write_text(json.dumps(info, indent=2))
+        logger.info("Verified %s (%s, %d files): wrote %s", target.zip, gb(info["zip_bytes"]), len(names),
+                    target.done.name)
+    else:
+        logger.info("Verified %s: everything matches", target.zip)
+    return {"ok": True, "problems": [], "counts": counts, "done": info}
+
+
+def log_counts(counts: dict[str, Any]) -> None:
+    splits = [s for s in ALL_SPLITS if counts["images"].get(s)]
+    row = "%-22s" + " %9s" * len(splits)
+    logger.info(row, "images in the zip", *splits)
+    logger.info(row, "ALL", *(counts["images"].get(s, 0) for s in splits))
+    for source, per in sorted(counts["sources"].items()):
+        logger.info(row, source, *(per.get(s, 0) for s in splits))
 
 
 def copy_files(src: Path, dest: Path, desc: str) -> None:
@@ -1424,8 +1582,8 @@ def append(
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--raw", required=True, type=Path, nargs="+",
-                        help="raw dataset folder(s), searched in order for each source")
+    parser.add_argument("--raw", type=Path, nargs="+",
+                        help="raw dataset folder(s), searched in order for each source (not for --verify-only)")
     parser.add_argument("--zip", required=True, type=Path, help="merged.zip to write (e.g. on Drive)")
     parser.add_argument("--work", type=Path, default=DEFAULT_WORK, help="local build folder")
     parser.add_argument("--append", nargs="+", metavar="SOURCE",
@@ -1438,6 +1596,8 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-side", type=int, default=1280, help="resize images to at most this many px")
     parser.add_argument("--jpeg-quality", type=int, default=90)
     parser.add_argument("--force", action="store_true", help="rebuild even if the zip is already done")
+    parser.add_argument("--verify-only", action="store_true",
+                        help="only check an uploaded zip against merge_report.json and write merged.done if it matches")
     parser.add_argument("--focus-only", nargs="*", default=[], metavar="SOURCE",
                         help=f"append: keep only images with {', '.join(FOCUS_CLASSES)} (+ --other-share others)")
     parser.add_argument("--other-share", type=float, default=OTHER_SHARE)
@@ -1452,6 +1612,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                   seed=args.seed, review_samples=args.review_samples, max_side=args.max_side,
                   jpeg_quality=args.jpeg_quality)
     try:
+        if args.verify_only:
+            return 0 if verify_existing(args.zip, args.work)["ok"] else 1
+        if not args.raw:
+            raise MergeError("--raw is required (except with --verify-only)")
         if args.append:
             append(args.raw, args.zip, args.append, focus_only=args.focus_only, other_share=args.other_share,
                    phash_distance=args.phash_distance, **common)

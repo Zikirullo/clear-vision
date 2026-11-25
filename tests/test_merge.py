@@ -489,3 +489,94 @@ def test_changed_classes_for_reports_without_recorded_mapping() -> None:
     recorded = {"mapping": {"crosswalk": "crosswalk", "pedestrian-crossing": "drop", "2": "drop"}}
     assert changed_classes(recorded, m) == ["pedestrian-crossing"]
     assert changed_classes({"mapping": dict(m.classes)}, m) == []
+
+
+# ---------------------------------------------------------------------- verify only (interrupted upload)
+
+from scripts.merge_datasets import compare_with_report, count_zip_members, verify_existing  # noqa: E402
+
+
+def interrupted(tmp_path: Path) -> tuple[Path, dict]:
+    """A finished merge whose merged.done was lost, as when the run stops during verification."""
+    run_merge(tmp_path)
+    done = zip_of(tmp_path).with_suffix(".done")
+    info = json.loads(done.read_text())
+    done.unlink()
+    return zip_of(tmp_path), info
+
+
+def test_verify_only_writes_done_like_a_normal_run(tmp_path: Path) -> None:
+    zip_path, original = interrupted(tmp_path)
+    result = verify_existing(zip_path, tmp_path / "verify", sync=no_sync)
+    assert result["ok"] and result["problems"] == []
+    done = json.loads(zip_path.with_suffix(".done").read_text())
+    assert set(done) == set(original)
+    assert {k: done[k] for k in ("zip_bytes", "files", "images")} == {k: original[k] for k in ("zip_bytes", "files", "images")}
+    assert result["counts"]["images"] == {s: n for s, n in original["images"].items() if n}
+    assert not list((tmp_path / "verify").glob("*.zip"))  # the local copy is removed
+    # prepare_dataset() accepts it
+    from src.colab_data import prepare_dataset
+    data_yaml = prepare_dataset(zip_path, tmp_path / "unpacked", check=False)
+    assert data_yaml.exists()
+
+
+def test_verify_only_rejects_a_corrupt_member(tmp_path: Path) -> None:
+    zip_path, _ = interrupted(tmp_path)
+    corrupt_upload(tmp_path)()
+    result = verify_existing(zip_path, tmp_path / "verify", sync=no_sync)
+    assert not result["ok"] and any("CRC" in p for p in result["problems"])
+    assert not zip_path.with_suffix(".done").exists()
+
+
+def test_verify_only_rejects_a_truncated_zip(tmp_path: Path) -> None:
+    zip_path, _ = interrupted(tmp_path)
+    truncate_upload(tmp_path)()
+    result = verify_existing(zip_path, tmp_path / "verify", sync=no_sync)
+    assert not result["ok"] and any("incomplete" in p or "CRC" in p for p in result["problems"])
+    assert not zip_path.with_suffix(".done").exists()
+
+
+def test_verify_only_rejects_counts_that_differ_from_the_report(tmp_path: Path) -> None:
+    zip_path, _ = interrupted(tmp_path)
+    report_path = zip_path.with_name("merge_report.json")
+    report = json.loads(report_path.read_text())
+    report["images"]["train"] += 1
+    report["sources"]["src_a"]["images"]["train"] += 1
+    report_path.write_text(json.dumps(report))
+    result = verify_existing(zip_path, tmp_path / "verify", sync=no_sync)
+    assert not result["ok"]
+    text = "\n".join(result["problems"])
+    assert "train:" in text and "source src_a, train" in text and "differs" in text
+    assert not zip_path.with_suffix(".done").exists()
+
+
+def test_verify_only_rejects_a_missing_image(tmp_path: Path) -> None:
+    zip_path, _ = interrupted(tmp_path)
+    rebuilt = tmp_path / "rebuilt.zip"
+    with zipfile.ZipFile(zip_path) as src, zipfile.ZipFile(rebuilt, "w") as dst:
+        skipped = next(n for n in src.namelist() if n.startswith("images/train/"))
+        for item in src.infolist():
+            if item.filename != skipped:
+                dst.writestr(item, src.read(item))
+    shutil.move(rebuilt, zip_path)
+    result = verify_existing(zip_path, tmp_path / "verify", sync=no_sync)
+    assert not result["ok"]
+    assert any("label files without an image" in p for p in result["problems"])
+    assert not zip_path.with_suffix(".done").exists()
+
+
+def test_count_zip_members_per_split_and_source() -> None:
+    names = ["data.yaml", "images/train/", "images/train/a_x.jpg", "labels/train/a_x.txt",
+             "images/external_test/ab_y.jpg", "labels/external_test/ab_y.txt",
+             "images/val/negatives_z.jpg", "labels/val/negatives_z.txt", "images/test/zz_q.jpg"]
+    counts = count_zip_members(names, ["a", "ab", "negatives"])
+    assert counts["images"] == {"train": 1, "external_test": 1, "val": 1, "test": 1}
+    assert counts["sources"] == {"a": {"train": 1}, "ab": {"external_test": 1}, "negatives": {"val": 1}}
+    assert counts["unlabeled"] == {"test": ["zz_q"]} and counts["unknown_source"] == ["images/test/zz_q.jpg"]
+    report = {"images": {"train": 1, "val": 1, "test": 0, "external_test": 1},
+              "sources": {"a": {"images": {"train": 1}}, "ab": {"images": {"external_test": 1}},
+                          "negatives": {"images": {"val": 2}}}}
+    problems = compare_with_report(counts, report)
+    assert "test: 1 images in the zip, merge_report.json says 0" in problems
+    assert "source negatives, val: 1 images in the zip, report says 2" in problems
+    assert any("without a label file" in p for p in problems)

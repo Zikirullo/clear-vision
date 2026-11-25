@@ -267,6 +267,14 @@ def test_append_focus_only_guard_and_external_split(tmp_path: Path) -> None:
     # The pHash index covers every image, for the next append.
     assert set(phash_index) == {f"{split}/{name}" for name, split in images.items()}
     assert md.load_classes(tmp_path / "classes.yaml") == CLASSES
+    # Verify only (upload interrupted before merged.done): counts per split incl. external_test match.
+    done = zip_path.with_suffix(".done")
+    original = json.loads(done.read_text())
+    done.unlink()
+    result = md.verify_existing(zip_path, tmp_path / "verify", sync=lambda: None)
+    assert result["ok"], result["problems"]
+    assert result["counts"]["sources"]["ext"] == {EXTERNAL: 1}
+    assert json.loads(done.read_text())["images"] == original["images"]
 
 
 def test_append_negatives_keeps_empty_label_images(tmp_path: Path) -> None:
@@ -293,6 +301,9 @@ def test_append_negatives_keeps_empty_label_images(tmp_path: Path) -> None:
     neg = report["sources"]["negatives"]
     assert sum(neg["images"].values()) == 4 and neg["missing_label_files"] == 0
     assert all(not b for b in neg["boxes"].values())
+    zip_path.with_suffix(".done").unlink()
+    result = md.verify_existing(zip_path, tmp_path / "verify", sync=lambda: None)
+    assert result["ok"] and sum(result["counts"]["sources"]["negatives"].values()) == 4
 
 
 # ---------------------------------------------------------------------- the real mapping files
